@@ -1,13 +1,21 @@
-# Build artifacts
+# Compiled binaries, tests and generated browser distribution (contains ROMs)
 /build/
 
-# Commercial ROMs
+# Local commercial ROMs; keep only the directory documentation in version control
+/common/roms/*
+!/common/roms/README.md
+!/common/roms/README.es.md
+
+# Keep legacy private files ignored until the documented migration is complete
 /roms/
+/standalone/browser/pacman.js
 
 # External Z80 validation images
 *.cim
 
-# Editor / OS metadata
+# Editor, Python and OS metadata
+__pycache__/
+*.pyc
 .idea/
 .vscode/
 .DS_Store

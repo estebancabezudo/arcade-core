@@ -10,39 +10,11 @@ mkdir -p \
     build/host \
     build/pacman_host_c
 
-common_cflags=(
-    -std=c17
-    -O2
-    -Wall
-    -Wextra
-    -Wpedantic
-    -Werror
-    -Idevices/z80
-    -Idevices/namco_wsg
-    -Iboards/pacman_audio
-    -Iboards/pacman_cpu
-    -Iboards/pacman_video
-    -Imachines/pacman
-    -Iromsets/pacman
-    -Iplatform/host
-)
-
-common_sources=(
-    devices/z80/z80.c
-    devices/namco_wsg/namco_wsg.c
-    boards/pacman_audio/pacman_audio_board.c
-    boards/pacman_cpu/pacman_cpu_board.c
-    boards/pacman_video/pacman_video_board.c
-    boards/pacman_video/pacman_video_timing.c
-    machines/pacman/pacman_machine.c
-    romsets/pacman/pacman_romset.c
-    platform/host/file_loader.c
-    platform/host/pacman_rom_loader.c
-)
+source "$project_dir/scripts/common-build.sh"
 
 objects=()
 
-for source in "${common_sources[@]}"; do
+for source in "${common_c_sources[@]}"; do
     object="build/pacman_host_c/$(basename "${source%.c}").o"
 
     cc \
@@ -59,14 +31,14 @@ ar rcs \
 
 cc \
     "${common_cflags[@]}" \
-    platform/host/pacman_sim.c \
+    modular/platforms/host/pacman_sim.c \
     build/pacman_host_c/libpacman_host.a \
     -o build/host/pacman-sim \
     $(pkg-config --cflags --libs sdl2)
 
 cc \
     "${common_cflags[@]}" \
-    platform/host/pacman_hdmi_sim.c \
+    modular/platforms/host/pacman_hdmi_sim.c \
     build/pacman_host_c/libpacman_host.a \
     -o build/host/pacman-hdmi-sim \
     $(pkg-config --cflags --libs sdl2)
@@ -84,10 +56,10 @@ verilator \
     -GSOURCE_WIDTH=224 \
     -GSOURCE_HEIGHT=288 \
     -GSCALE=2 \
-    -CFLAGS "-std=c++17 -O2 $(pkg-config --cflags sdl2) -I$project_dir/devices/z80 -I$project_dir/devices/namco_wsg -I$project_dir/boards/pacman_audio -I$project_dir/boards/pacman_cpu -I$project_dir/boards/pacman_video -I$project_dir/machines/pacman -I$project_dir/romsets/pacman -I$project_dir/platform/host" \
+    -CFLAGS "-std=c++17 -O2 $(pkg-config --cflags sdl2) -I$project_dir/common/devices/z80 -I$project_dir/common/devices/namco_wsg -I$project_dir/common/boards/pacman_audio -I$project_dir/common/boards/pacman_cpu -I$project_dir/common/boards/pacman_video -I$project_dir/common/machines/pacman -I$project_dir/common/romsets/pacman -I$project_dir/modular/platforms/host" \
     -LDFLAGS "$project_dir/build/pacman_host_c/libpacman_host.a $(pkg-config --libs sdl2)" \
-    sim/pacman_video_system_sdl.cpp \
-    rtl/*.sv
+    "$project_dir/modular/platforms/host/pacman_video_system_sdl.cpp" \
+    common/rtl/*.sv
 
 ln -sfn \
     ../pacman_video_system_sdl/Vvideo_system \

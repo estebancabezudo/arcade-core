@@ -1,7 +1,7 @@
 # Tang Nano 20K integration boundary
 
 This directory keeps board-specific work separate from the generic RTL in
-`rtl/`. The current deliverable is a simulation-checked logical shell, not a
+`common/rtl/` at the repository root. The current deliverable is a simulation-checked logical shell, not a
 claim of synthesis or operation on physical hardware.
 
 ## Present boundary
@@ -34,7 +34,7 @@ official constraint file and Gowin device database. Until then, inventing a
 target. Once confirmed, place only the board adapters here:
 
 ```text
-fpga/tangnano20k/
+modular/platforms/fpga/tangnano20k/
 ├── constraints/   # verified .cst/.sdc files
 ├── gowin/         # PLL, SDRAM and TMDS primitive wrappers/IP
 ├── rtl/           # board shell and RP2350 ingress

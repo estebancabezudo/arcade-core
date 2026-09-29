@@ -537,7 +537,7 @@ int main(
     const char *rom_directory =
         argc >= 2
             ? argv[1]
-            : "roms/pacman";
+            : "common/roms/pacman";
 
     PacmanRomSet romset;
 

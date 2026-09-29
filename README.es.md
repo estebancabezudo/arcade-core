@@ -4,11 +4,14 @@
 
 `arcade-core` comenzó como un emulador de hardware clásico pensado para ejecutar como bare-metal en dispositivos muy pequeños. La arquitectura original es modular separando procesador de la placa del arcade, audio y video con fin de poder extenderlo fácilmente a otros arcade. La idea es no tener que levantar un OS, ni MAME e ir directamente al juego como si fuera la máquina original.  Fue pensado para una implementación híbrida CPU + FPGA para correr sobre HDMI.
 
+El alcance actual incluye integraciones modulares nativas/FPGA y una distribución autocontenida para navegador. Los targets bare-metal siguen separados de las rutas host y navegador implementadas.
+
 El proyecto está escrito principalmente en:
 
 - C17 para emulación de CPU, placas, máquinas y herramientas host.
 - SystemVerilog para el pipeline de vídeo.
 - C++17 para los testbenches de Verilator y la integración SDL del RTL.
+- JavaScript para el ejemplo independiente de navegador.
 
 Actualmente incluye una implementación funcional de **Pac-Man**, con:
 
@@ -18,10 +21,13 @@ Actualmente incluye una implementación funcional de **Pac-Man**, con:
 - audio Namco WSG de tres voces;
 - ejecución de la máquina sincronizada por T-states;
 - simulador interactivo SDL;
+- ejemplo independiente para navegador en JavaScript;
 - pipeline de framebuffer y vídeo 720p en RTL;
 - integración Pac-Man → RTL → SDL mediante Verilator.
 
 El objetivo del proyecto no es depender de MAME en tiempo de ejecución. Los componentes de la máquina están implementados dentro de `arcade-core`.
+
+Para la versión web, consulta el [ejemplo JavaScript para navegador](#ejemplo-javascript-para-navegador).
 
 ---
 
@@ -49,118 +55,77 @@ La implementación actual tiene validados:
 
 # Estructura del proyecto
 
+La separación principal distingue **componentes comunes**, **integraciones modulares por plataforma** y **distribuciones standalone**. Standalone significa distribución autocontenida; la versión web sigue funcionando dentro de un navegador, no en bare-metal.
+
 ```text
 arcade-core/
-├── devices/
-│   ├── z80/
-│   └── namco_wsg/
-│
-├── boards/
-│   ├── pacman_cpu/
-│   ├── pacman_video/
-│   └── pacman_audio/
-│
-├── machines/
-│   └── pacman/
-│
-├── romsets/
-│   └── pacman/
-│
-├── platform/
-│   └── host/
-│
-├── rtl/
-├── sim/
-├── fpga/
-│   └── tangnano20k/
-│
+├── common/
+│   ├── devices/                 # z80, namco_wsg
+│   ├── boards/                  # pacman_cpu, pacman_video, pacman_audio
+│   ├── machines/pacman/
+│   ├── romsets/pacman/
+│   ├── rtl/                     # reusable video pipeline
+│   └── roms/pacman/             # local/private ROM input
+├── modular/
+│   └── platforms/
+│       ├── host/                # SDL, loaders, Verilator + SDL
+│       └── fpga/tangnano20k/     # logical shell; physical target pending
+├── standalone/
+│   ├── include/platform.h      # native platform contract
+│   └── platforms/
+│       ├── browser/
+│       │   ├── index.html
+│       │   └── pacman.template.js
+│       └── raspberry_pi/        # planned native target, not implemented
 ├── tests/
-│   ├── host/
-│   ├── namco_wsg/
-│   ├── pacman_audio/
-│   ├── pacman_cpu/
-│   ├── pacman/
-│   └── z80/
-│
-├── scripts/
-├── roms/
-│   └── pacman/
-│
+│   ├── common/                  # C devices, boards, machine, ROM set
+│   ├── modular/host/            # native file/ROM loaders
+│   ├── rtl/                     # Verilator testbenches
+│   └── standalone/browser/     # JavaScript, packaging, browser smoke
+├── scripts/                     # build and verification entry points
+├── docs/                        # preview, migration and validation notes
+├── build/                       # generated; ignored by Git
+│   ├── host/                    # native executables after compilation
+│   ├── standalone/browser/     # ready-to-run index.html + pacman.js
+│   └── docs/                    # interactive HTML versions of the READMEs
 ├── Makefile
-└── README.md
+├── README.md
+└── README.es.md
 ```
 
-## Capas
+## Componentes comunes: `common/`
 
-### `devices/`
+`devices/` contiene los dispositivos reutilizables Z80 y Namco WSG. `boards/` los conecta con los subsistemas CPU, vídeo y audio de Pac-Man. `machines/pacman/` compone las placas mediante `PacmanMachine`, coordinando entradas y tiempo por T-states. `romsets/pacman/` define las regiones lógicas de las ROMs sin encargarse de leer archivos.
 
-Componentes reutilizables que representan dispositivos concretos.
+`common/rtl/` contiene el pipeline genérico de vídeo SystemVerilog, sin constraints de pines ni adaptadores físicos de Tang Nano. `common/roms/pacman/` es la **entrada local y privada** compartida por el loader nativo y el empaquetador JavaScript; las ROMs quedan ignoradas por Git.
 
-Actualmente:
+El fuente del navegador es un port separado a JavaScript. **No** importa C ni ejecuta RTL. Compartir las ROMs de entrada no implica que los cambios del motor C se propaguen automáticamente al JavaScript. Los componentes C también pueden servir a un futuro port standalone nativo; esa integración todavía no está implementada.
 
-- `z80`: emulador del Zilog Z80.
-- `namco_wsg`: generador de sonido Namco de tres voces utilizado por Pac-Man.
+## Integraciones modulares: `modular/platforms/`
 
-### `boards/`
+`host/` reúne la lectura de archivos, el loader de ROMs, `pacman_sim.c`, `pacman_hdmi_sim.c` y `pacman_video_system_sdl.cpp`. Este último es un adaptador ejecutable del host, por lo que deja de estar mezclado con los testbenches.
 
-Implementaciones de placas o subsistemas de una máquina.
+`fpga/tangnano20k/` contiene solo la integración específica de placa: shell lógico, entrada de raster RP2350 y documentación de los futuros constraints, memoria, relojes y TMDS. Sigue sin existir un bitstream físico verificado.
 
-Pac-Man está dividido en:
+## Targets standalone: `standalone/`
 
-```text
-pacman_cpu
-pacman_video
-pacman_audio
-```
+`platforms/browser/` contiene la plantilla fuente JavaScript sin ROMs y la página que muestra únicamente el canvas. `make pacman-web` genera un único JavaScript autocontenido y su página HTML en `build/standalone/browser/`.
 
-La placa CPU conecta el Z80 con memoria, I/O, interrupciones y registros de hardware.
+`include/platform.h` es el contrato de plataforma standalone nativa para vídeo, audio, entradas, tiempo e inicialización. `platforms/raspberry_pi/` queda identificado como **target previsto**: sus directorios boot/include/src/linker/scripts todavía no contienen implementación. No se afirma que exista una imagen de arranque Raspberry Pi ni un Pac-Man standalone nativo ejecutable.
 
-La placa de vídeo implementa raster, tilemap, sprites, color y timing.
+## Verificación y archivos generados
 
-La placa de audio conecta los registros de sonido de Pac-Man con el Namco WSG.
+Las pruebas reflejan su alcance bajo `tests/common/`, `tests/modular/`, `tests/rtl/` y `tests/standalone/`. Las listas comunes de fuentes e includes nativos están centralizadas en `scripts/common-build.sh`; se conservan los targets originales del Makefile raíz.
 
-### `machines/`
+Los programas compilados, temporales de pruebas, bundle web y documentación HTML se guardan bajo `build/`. La documentación y los inventarios de migración están en `docs/`.
 
-Integra las placas que forman una máquina completa.
-
-Actualmente:
-
-```text
-machines/pacman/
-```
-
-`PacmanMachine` coordina CPU, vídeo, audio, entradas y tiempo de emulación.
-
-### `romsets/`
-
-Describe la composición lógica de las ROM de una máquina independientemente de cómo se carguen desde el host.
-
-### `platform/host/`
-
-Código dependiente del ordenador anfitrión:
-
-- carga de archivos;
-- carga de ROMs;
-- simuladores SDL;
-- integración con el pipeline RTL simulado.
-
-### `rtl/`
-
-Pipeline de vídeo genérico escrito en SystemVerilog.
-
-### `sim/`
-
-Testbenches C++ para Verilator e integración RTL + SDL.
-
-### `fpga/`
-
-Código específico para futuras placas FPGA.
-
-Actualmente existe una frontera lógica para Tang Nano 20K, pero no un bitstream físico terminado.
+Consulta las [instrucciones de migración](docs/migration/README.es.md) para ver las rutas anteriores y nuevas, y la lista exacta de archivos obsoletos que debes eliminar después de copiar esta distribución sobre un checkout existente.
 
 ---
 
 # Requisitos
+
+Los siguientes requisitos corresponden a las herramientas host nativas y a la simulación RTL. El [ejemplo JavaScript para navegador](#ejemplo-javascript-para-navegador) se ejecuta de forma independiente en el navegador.
 
 En Debian o derivados se necesitan al menos:
 
@@ -182,14 +147,16 @@ Herramientas utilizadas:
 - SDL2;
 - Verilator.
 
+La lista de paquetes anterior corresponde a los targets nativos/RTL. Para jugar al ejemplo web preparado solo hace falta un navegador. Regenerar su bundle requiere Python 3 y ROMs locales; `make test-web` también requiere Node.js con soporte `node:test` (Node.js 18 o posterior). Generar los README HTML usa la dependencia opcional de `docs/requirements.txt`.
+
 # ROMs de Pac-Man
 
-Las ROM comerciales **no forman parte del repositorio**.
+Las ROM comerciales **no forman parte del repositorio**. Esta distribución privada de trabajo conserva las diez ROMs entregadas con el proyecto en el directorio ignorado `common/roms/pacman/`. No publiques esas ROMs ni el bundle web generado como parte del repositorio fuente.
 
-Para ejecutar Pac-Man deben colocarse localmente en:
+Para ejecutar los simuladores nativos de Pac-Man deben colocarse localmente en:
 
 ```text
-roms/pacman/
+common/roms/pacman/
 ```
 
 Se esperan estos diez archivos:
@@ -331,7 +298,7 @@ Este programa está pensado principalmente como prueba de integración del RTL, 
 
 # Controles
 
-En los simuladores interactivos:
+En los simuladores nativos SDL:
 
 | Tecla   | Función                        |
 | ------- | ------------------------------ |
@@ -346,12 +313,158 @@ El joystick original es de cuatro vías. El host evita enviar diagonales simult�
 
 ---
 
+# Ejemplo JavaScript para navegador
+
+[Abrir el juego con solo la pantalla](standalone/platforms/browser/index.html) · [README interactivo en español](build/docs/README.es.html)
+
+<iframe src="standalone/platforms/browser/index.html" title="Pac-Man arcade" width="448" height="576" style="border:0;max-width:100%;aspect-ratio:224/288" allow="autoplay; fullscreen" allowfullscreen></iframe>
+
+<details>
+<summary>Vista previa para lectores que no admiten contenido interactivo</summary>
+
+[![Pantalla arcade de Pac-Man](docs/images/pacman.png)](standalone/platforms/browser/index.html)
+
+</details>
+
+El ejemplo integrado es un juego real cuando el lector HTML permite iframes. **La vista de README de GitHub no ejecuta JavaScript**: su [pipeline de Markdown](https://github.com/github/markup#github-markup) elimina HTML activo. En GitHub, el enlace relativo al juego abre el fuente HTML, no una demo alojada. Para jugar, abre la página local o el README HTML generado. No se presupone un despliegue ni una URL pública operativa.
+
+Esta distribución privada incluye los archivos web generados, por lo que el ejemplo se puede abrir sin compilador. En un checkout que solo contenga los fuentes hay que proporcionar las ROMs y generar primero el bundle.
+
+## Ejecutar y regenerar
+
+Abre `standalone/platforms/browser/index.html` o `build/standalone/browser/index.html`. La primera es la página versionada, que referencia el bundle generado; la segunda pertenece a la distribución portable. El juego portable completo se compone de:
+
+```text
+build/standalone/browser/
+├── index.html
+└── pacman.js
+```
+
+Al terminar el arranque original, **haz clic/toca la pantalla o pulsa Enter** para introducir una moneda e iniciar una partida de un jugador. Hasta entonces se muestra únicamente el último cuadro de la secuencia original de arranque/demo; no hay un panel externo de inicio. Un clic mientras estás jugando no introduce otra moneda. Un clic durante una pausa continúa sin reiniciar.
+
+El ejemplo muestra **solo el canvas arcade de 224 × 288**: sin título externo, barra de herramientas, botones, volumen, estadísticas ni paneles superpuestos. Se conservan marcador, créditos, laberinto y mensajes originales porque forman parte de la imagen del arcade. En una pantalla táctil puedes arrastrar sobre el juego para elegir una dirección; al soltar se libera esa dirección.
+
+Para regenerarlo desde `common/roms/pacman/`, con Python 3 y Make, ejecuta desde la raíz del proyecto:
+
+```bash
+make pacman-web
+```
+
+`scripts/build-pacman-web.py` lee `standalone/platforms/browser/pacman.template.js`, valida tamaño exacto y CRC32 de las diez ROMs locales, inserta el bloque Base64 y escribe la distribución en `build/standalone/browser/`. La plantilla puede versionarse y **no contiene los bytes de las ROMs comerciales**. El bundle generado y las ROMs originales quedan ignorados por Git. Se utilizan exclusivamente las ROMs locales; no se descarga nada.
+
+Puedes copiar únicamente `build/standalone/browser/index.html` y `pacman.js` a otra carpeta o a un servidor web estático. Para jugar no hacen falta Python, Node.js, C, SDL ni Verilator. Abre el HTML, no el JavaScript. Las restricciones del navegador pueden afectar a páginas `file://`; servir esos dos archivos mediante un servidor estático es la alternativa.
+
+## Integración HTML y UTF-8
+
+Guarda este ejemplo como un archivo HTML **en la raíz del proyecto** después de generar el bundle. Todos los archivos deben estar en UTF-8:
+
+```html
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pac-Man</title>
+  <style>
+    body { margin: 0; background: #000; }
+    #game { width: min(448px, 100vw, calc(100dvh * 224 / 288)); margin: auto; }
+  </style>
+</head>
+<body>
+  <div id="game"></div>
+  <script>
+    window.PacmanOptions = { container: '#game', screenOnly: true, volume: 0.65 };
+  </script>
+  <script src="./build/standalone/browser/pacman.js" charset="utf-8" defer></script>
+</body>
+</html>
+```
+
+Define `PacmanOptions` antes de cargar el bundle. `screenOnly: true` crea un DOM con únicamente la pantalla, en lugar de ocultar un panel completo mediante CSS. Omite esa opción o usa `false` para conservar la interfaz completa original. `volume` admite valores de 0 a 1. Ambos modos comparten máquina, renderer y motor de audio.
+
+El sonido se inicializa desde una interacción del usuario; las [reglas de autoplay](https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Autoplay) del navegador pueden bloquearlo en otro caso. Si falla la inicialización del audio, el juego puede continuar en silencio. Ocultar la pestaña pausa la máquina. Al volver no se reanuda sola: haz clic en la pantalla o pulsa Enter/P.
+
+## Controles del navegador
+
+| Entrada | Acción |
+| --- | --- |
+| Clic/toque en pantalla o Enter | Primer inicio; después, continuar una pausa |
+| Flechas / WASD | Joystick de cuatro direcciones |
+| Arrastrar sobre la pantalla | Elegir una dirección; soltar la libera |
+| `5`, `C`, Espacio | Introducir moneda |
+| `1` / `2` | Iniciar uno / dos jugadores con créditos disponibles |
+| `P` / `Esc` | Pausar/continuar; Esc no sale como en SDL |
+| `M` | Silenciar/activar sonido |
+| `F` | Pantalla completa cuando esté disponible |
+
+Durante una partida, Enter envía la entrada de inicio de un jugador; un clic solo enfoca el canvas. Los controles visibles pertenecen únicamente al modo opcional de interfaz completa. En el modo de pantalla única, el reinicio está disponible mediante `PacmanWeb.reset()`.
+
+## Cómo funciona
+
+1. **ROMs:** `decodeROMs()` decodifica el bloque Base64 insertado y vuelve a comprobar tamaños y CRC32 de `ROM_MANIFEST`. Las ROMs de CPU, gráficos, paleta y sonido permanecen dentro del único bundle JavaScript. Base64 es una codificación, no compresión.
+2. **CPU y tiempo:** el Z80 ejecuta las instrucciones reales de las ROMs. `Machine.step()` avanza raster y sonido según los T-states de cada instrucción: 3.072.000 por segundo y 50.688 por cuadro de máquina, aproximadamente 60,606 cuadros/s. VBlank activa la interrupción habilitada. Las reglas del juego, enemigos y puntuación proceden de las ROMs, no de una recreación del juego en JavaScript.
+3. **Vídeo:** `Renderer` predecodifica tiles, sprites y paletas. Cachea los cambios del fondo, compone sprites, aplica la orientación y presenta un `ImageData` reutilizado en Canvas 2D a 224 × 288, sin suavizado de píxeles.
+4. **Audio:** el Namco WSG de tres voces produce una muestra interna cada 16 T-states (192 kHz); se promedian cuatro muestras para obtener PCM16 a 48 kHz. Las escrituras WSG diferidas se aplican **después** de generar el audio de la instrucción actual. La PROM de timing se conserva y valida; la generación utiliza el timing del modelo y no consulta esa PROM.
+5. **Reproducción:** se carga un `AudioWorklet` integrado mediante un Blob local. Los buffers PCM transferibles se reciclan hacia un buffer circular. Cuando esa inicialización no está disponible, se usa programación de bloques con `AudioBufferSourceNode`. La CPU y la síntesis siguen en el hilo principal; el worklet reproduce el audio.
+6. **Sincronización:** `PacmanApp.pump()` utiliza el reloj de audio o `performance.now()` si no hay sonido. `requestAnimationFrame` presenta el último cuadro completo independientemente del reloj de la máquina emulada. Se limita la recuperación tras bloqueos largos y las pestañas ocultas pausan la ejecución.
+
+```text
+ROMs locales --> build-pacman-web.py --> pacman.js autocontenido
+                                               |
+                                       Z80 + Machine + entradas
+                                               |
+                          +--------------------+------------------+
+                          |                                       |
+                  Renderer --> Canvas 2D                Namco WSG --> Web Audio
+```
+
+La versión web no ejecuta `common/rtl/`, Verilator, scanout HDMI ni los efectos CRT del RTL. Es una presentación standalone por software, no una demostración de funcionamiento del target FPGA.
+
+## API JavaScript
+
+Para montaje manual, define `window.PacmanOptions = { autoMount: false }` antes del bundle y monta cuando exista el elemento de destino:
+
+```javascript
+const game = window.PacmanWeb.mount('#game', { screenOnly: true, volume: 0.65 });
+game.ready.then(() => console.log(window.PacmanWeb.getStats()));
+```
+
+`game.ready` finaliza después del intento de arranque; `getStats().booted` indica si tuvo éxito. Inicia el audio/juego desde un clic o tecla, no desde la promesa de arranque.
+
+| API | Función |
+| --- | --- |
+| `PacmanWeb.mount(target, options)` | Montar una instancia; sustituye la anterior |
+| `PacmanWeb.play()` | Introducir moneda y solicitar inicio de un jugador |
+| `PacmanWeb.pause()` / `resume()` | Pausar/continuar la misma partida |
+| `PacmanWeb.insertCoin()` | Introducir moneda y solicitar reanudación |
+| `PacmanWeb.reset()` | Reiniciar y ejecutar otra vez el arranque original |
+| `PacmanWeb.getStats()` | Consultar ejecución, tiempos y contadores de audio |
+| `PacmanWeb.destroy()` | Detener, liberar recursos y retirar el componente |
+
+Para continuar una partida utiliza `resume()`, no `play()`. Las estadísticas siguen disponibles por API aunque la pantalla única no muestre contadores.
+
+## Verificación web y README interactivos
+
+```bash
+make test-web
+```
+
+Este target regenera el bundle y ejecuta regresiones Node.js y pruebas Python del empaquetador. **No** abre un navegador. La prueba opcional Playwright se documenta en las [instrucciones de pruebas web](tests/standalone/browser/README.md). `make test` conserva la suite C/RTL separada y no requiere Node.js.
+
+Las optimizaciones son arrays tipados, gráficos y paletas predecodificados, caché de tiles modificados, framebuffers reutilizados y reciclado PCM en el camino AudioWorklet. El fallback sigue creando buffers y nodos de audio. Son optimizaciones concretas, no una garantía universal de rendimiento.
+
+El paquete privado también incluye versiones HTML de ambos README en `build/docs/`; su iframe integrado permite jugar sin un visor Markdown. Para regenerarlas instala la dependencia documental opcional de `docs/requirements.txt` y ejecuta `make readme-pages`. Esa dependencia solo sirve para regenerar documentación, no para jugar.
+
+Consulta las [notas de validación](docs/VALIDATION.md) para distinguir las comprobaciones realizadas en esta reorganización y las limitaciones del entorno.
+
+---
+
 # CPU Z80
 
 El core se encuentra en:
 
 ```text
-devices/z80/
+common/devices/z80/
 ```
 
 Está diseñado como componente aislado reutilizable y no depende de ninguna implementación de juego.
@@ -382,7 +495,7 @@ Además del conjunto de pruebas locales, el core fue validado con **ZEXDOC** y *
 
 # Ejecutar ZEXDOC / ZEXALL
 
-`tests/z80/zex_runner.c` es un runner separado porque las imágenes `.cim` externas no forman parte del repositorio.
+`tests/common/z80/zex_runner.c` es un runner separado porque las imágenes `.cim` externas no forman parte del repositorio.
 
 Compilar:
 
@@ -396,9 +509,9 @@ cc \
     -Wextra \
     -Wpedantic \
     -Werror \
-    -Idevices/z80 \
-    devices/z80/z80.c \
-    tests/z80/zex_runner.c \
+    -Icommon/devices/z80 \
+    common/devices/z80/z80.c \
+    tests/common/z80/zex_runner.c \
     -o build/z80/zex_runner
 ```
 
@@ -455,8 +568,8 @@ El subsistema de audio utiliza un dispositivo Namco WSG de tres voces.
 Implementación:
 
 ```text
-devices/namco_wsg/
-boards/pacman_audio/
+common/devices/namco_wsg/
+common/boards/pacman_audio/
 ```
 
 Características principales:
@@ -496,7 +609,7 @@ Esta sincronización es importante para efectos rápidos como el sonido de Pac-M
 El pipeline final parte de:
 
 ```text
-rtl/video_system.sv
+common/rtl/video_system.sv
 ```
 
 El diseño desacopla completamente:
@@ -701,7 +814,8 @@ make video-system
 `make test` compila y ejecuta automáticamente los archivos:
 
 ```text
-tests/**/*_test.c
+tests/common/**/*_test.c
+tests/modular/**/*_test.c
 ```
 
 La suite cubre actualmente:
@@ -740,6 +854,8 @@ rm -rf build
 
 y reconstruirse ejecutando nuevamente los targets de `make`.
 
+Esto también elimina la distribución web y los README HTML generados. Regenera el navegador con `make pacman-web` y la documentación HTML con `make readme-pages`. Las entradas permanecen en `standalone/platforms/browser/` y `common/roms/pacman/`; limpiar `build/` no las elimina.
+
 `build/` no lo vamos a encontrar en Git.
 
 ---
@@ -749,7 +865,7 @@ y reconstruirse ejecutando nuevamente los targets de `make`.
 El directorio:
 
 ```text
-fpga/tangnano20k/
+modular/platforms/fpga/tangnano20k/
 ```
 
 separa el código específico de placa del RTL genérico.
@@ -779,7 +895,7 @@ No deben inventarse constraints ni parámetros eléctricos sin esa información.
 El estado específico se documenta también en:
 
 ```text
-fpga/tangnano20k/README.md
+modular/platforms/fpga/tangnano20k/README.md
 ```
 
 ---

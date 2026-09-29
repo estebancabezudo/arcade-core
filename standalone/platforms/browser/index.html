@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <title>Pac-Man | arcade-core</title>
+  <style>
+    html, body { margin: 0; min-height: 100%; background: #000; color: #fff; }
+    body { min-height: 100dvh; display: grid; place-items: center; }
+    #game { width: min(100vw, calc(100dvh * 224 / 288)); }
+    .error { max-width: 36rem; padding: 1rem; font: 16px/1.5 system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="game"></div>
+  <p id="load-error" class="error" role="alert" hidden>
+    No se pudo cargar Pac-Man. Ejecuta <code>make pacman-web</code> desde la raíz
+    del proyecto y vuelve a abrir esta página.
+  </p>
+  <noscript><p class="error">Activa JavaScript para ejecutar Pac-Man.</p></noscript>
+  <script>
+    'use strict';
+    window.PacmanOptions = { container: '#game', screenOnly: true, volume: 0.65 };
+  </script>
+  <script src="../../../build/standalone/browser/pacman.js" charset="utf-8" defer
+          onerror="document.getElementById('load-error').hidden = false"></script>
+</body>
+</html>
