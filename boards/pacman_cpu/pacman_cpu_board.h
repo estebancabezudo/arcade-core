@@ -1,0 +1,290 @@
+#ifndef ARCADE_CORE_PACMAN_CPU_BOARD_H
+#define ARCADE_CORE_PACMAN_CPU_BOARD_H
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#include "z80.h"
+
+/*
+ * Original Pac-Man timing.
+ *
+ * 18.432 MHz master crystal / 6 = 3.072 MHz Z80.
+ */
+enum {
+    PACMAN_MASTER_CLOCK_HZ = 18432000,
+    PACMAN_CPU_CLOCK_HZ = 3072000,
+
+    PACMAN_PROGRAM_ROM_SIZE = 0x4000,
+
+    PACMAN_VIDEO_RAM_SIZE = 0x0400,
+    PACMAN_COLOR_RAM_SIZE = 0x0400,
+
+    PACMAN_WORK_RAM_SIZE = 0x03f0,
+
+    PACMAN_SPRITE_ATTRIBUTE_RAM_SIZE = 0x0010,
+    PACMAN_SPRITE_COORDINATE_RAM_SIZE = 0x0010,
+
+    PACMAN_SOUND_REGISTER_COUNT = 0x0020
+};
+
+/*
+ * Connection from the CPU board to the video board.
+ *
+ * The CPU board owns the address decoder.
+ * The video board owns the memories that its hardware consumes.
+ */
+typedef struct {
+    void *context;
+
+    uint8_t (*video_ram_read)(
+        void *context,
+        uint16_t offset
+    );
+
+    void (*video_ram_write)(
+        void *context,
+        uint16_t offset,
+        uint8_t value
+    );
+
+    uint8_t (*color_ram_read)(
+        void *context,
+        uint16_t offset
+    );
+
+    void (*color_ram_write)(
+        void *context,
+        uint16_t offset,
+        uint8_t value
+    );
+
+    uint8_t (*sprite_attribute_read)(
+        void *context,
+        uint16_t offset
+    );
+
+    void (*sprite_attribute_write)(
+        void *context,
+        uint16_t offset,
+        uint8_t value
+    );
+
+    void (*sprite_coordinate_write)(
+        void *context,
+        uint16_t offset,
+        uint8_t value
+    );
+
+    void (*set_flip_screen)(
+        void *context,
+        bool enabled
+    );
+} PacmanCpuVideoPort;
+
+
+/*
+ * Connection from the CPU board to the sound board.
+ */
+typedef struct {
+    void *context;
+
+    void (*write_register)(
+        void *context,
+        uint16_t offset,
+        uint8_t value
+    );
+
+    void (*set_enabled)(
+        void *context,
+        bool enabled
+    );
+} PacmanCpuSoundPort;
+
+
+/*
+ * Cabinet / switches / external machine services.
+ */
+typedef struct {
+    void *context;
+
+    uint8_t (*read_input0)(
+        void *context
+    );
+
+    uint8_t (*read_input1)(
+        void *context
+    );
+
+    uint8_t (*read_dsw1)(
+        void *context
+    );
+
+    uint8_t (*read_dsw2)(
+        void *context
+    );
+
+    void (*coin_counter_write)(
+        void *context,
+        bool active
+    );
+
+    /*
+     * Address 50C0 resets the watchdog timer.
+     *
+     * The watchdog device itself will be modeled separately so it
+     * can request a reset of the complete machine, not just the CPU.
+     */
+    void (*watchdog_kick)(
+        void *context
+    );
+} PacmanCpuIoPort;
+
+
+typedef struct {
+    PacmanCpuVideoPort video;
+    PacmanCpuSoundPort sound;
+    PacmanCpuIoPort io;
+} PacmanCpuBoardConnections;
+
+
+typedef struct {
+    /*
+     * Reusable CPU device.
+     */
+    Z80 cpu;
+
+    /*
+     * Program ROM is external immutable storage.
+     *
+     * On the PC this may point to a loaded ROM image.
+     * On the final RP2350 it may point directly into flash.
+     */
+    const uint8_t *program_rom;
+    size_t program_rom_size;
+
+    /*
+     * CPU-local work RAM:
+     *
+     * 4C00-4FEF
+     */
+    uint8_t work_ram[PACMAN_WORK_RAM_SIZE];
+
+    /*
+     * 74LS259-style output latch at 5000-5007.
+     *
+     * bit 0: interrupt enable
+     * bit 1: sound enable
+     * bit 2: not connected on original Pac-Man
+     * bit 3: flip screen
+     * bit 4: player 1 lamp output
+     * bit 5: player 2 lamp output
+     * bit 6: coin lockout output
+     * bit 7: coin counter
+     */
+    uint8_t output_latch;
+
+    /*
+     * Byte presented to the Z80 during IM 0 interrupt acknowledge.
+     *
+     * Written by OUT to I/O port 0.
+     */
+    uint8_t interrupt_vector;
+
+    /*
+     * Current vertical blank state.
+     */
+    bool vblank;
+
+    PacmanCpuBoardConnections connections;
+} PacmanCpuBoard;
+
+
+/*
+ * Initialize the board.
+ *
+ * No heap allocation is performed.
+ *
+ * program_rom must contain exactly the 16 KiB program ROM region
+ * visible at 0000-3FFF.
+ */
+bool pacman_cpu_board_init(
+    PacmanCpuBoard *board,
+    const uint8_t *program_rom,
+    size_t program_rom_size,
+    const PacmanCpuBoardConnections *connections
+);
+
+
+/*
+ * Hardware reset.
+ *
+ * ROM and external board connections remain attached.
+ */
+void pacman_cpu_board_reset(
+    PacmanCpuBoard *board
+);
+
+
+/*
+ * Execute one Z80 instruction / interrupt.
+ *
+ * Return value is the number of Z80 T-states consumed.
+ */
+uint32_t pacman_cpu_board_step(
+    PacmanCpuBoard *board
+);
+
+
+/*
+ * Run until at least t_state_budget Z80 T-states have elapsed.
+ *
+ * Returns the actual number consumed; the final instruction may
+ * make the result slightly larger than the requested budget.
+ */
+uint64_t pacman_cpu_board_run(
+    PacmanCpuBoard *board,
+    uint64_t t_state_budget
+);
+
+
+/*
+ * Drive the vertical blank signal generated by the video hardware.
+ *
+ * Rising VBlank asserts the Z80 IRQ when output-latch bit 0 is set.
+ */
+void pacman_cpu_board_set_vblank(
+    PacmanCpuBoard *board,
+    bool active
+);
+
+
+/*
+ * Public bus accessors are intentionally exposed so the physical
+ * address decoder can be tested independently from instruction
+ * execution.
+ */
+uint8_t pacman_cpu_board_memory_read(
+    PacmanCpuBoard *board,
+    uint16_t address
+);
+
+void pacman_cpu_board_memory_write(
+    PacmanCpuBoard *board,
+    uint16_t address,
+    uint8_t value
+);
+
+uint8_t pacman_cpu_board_io_read(
+    PacmanCpuBoard *board,
+    uint16_t port
+);
+
+void pacman_cpu_board_io_write(
+    PacmanCpuBoard *board,
+    uint16_t port,
+    uint8_t value
+);
+
+#endif

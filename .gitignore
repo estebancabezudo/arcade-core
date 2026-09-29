@@ -1,0 +1,14 @@
+# Build artifacts
+/build/
+
+# Commercial ROMs
+/roms/
+
+# External Z80 validation images
+*.cim
+
+# Editor / OS metadata
+.idea/
+.vscode/
+.DS_Store
+*~
