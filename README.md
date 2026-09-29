@@ -1,51 +1,53 @@
 # arcade-core
 
-`arcade-core` comenzó como un emulador de hardware clásico pensado para ejecutar como bare-metal en dispositivos muy pequeños. La arquitectura original es modular separando procesador de la placa del arcade, audio y video con fin de poder extenderlo fácilmente a otros arcade. La idea es no tener que levantar un OS, ni mame e ir directamente al juego como si fuera la máquina original.  Fue pensado para una implementación híbrida CPU + FPGA para correr sobre HDMI.
+[English](README.md) | [Español](README.es.md)
 
-El proyecto está escrito principalmente en:
+`arcade-core` began as a classic hardware emulator designed to run bare-metal on very small devices. Its original architecture is modular, separating the arcade CPU board, audio, and video so it can be extended more easily to other arcade machines. The goal is to avoid booting an operating system or running MAME and instead go directly into the game, as if it were the original machine. It was conceived for a hybrid CPU + FPGA implementation driving HDMI output.
 
-- C17 para emulación de CPU, placas, máquinas y herramientas host.
-- SystemVerilog para el pipeline de vídeo.
-- C++17 para los testbenches de Verilator y la integración SDL del RTL.
+The project is written primarily in:
 
-Actualmente incluye una implementación funcional de **Pac-Man**, con:
+- C17 for CPU, board, and machine emulation, plus host tools.
+- SystemVerilog for the video pipeline.
+- C++17 for Verilator testbenches and RTL/SDL integration.
 
-- CPU Z80.
-- placa CPU de Pac-Man;
-- vídeo, tilemap, sprites y paleta;
-- audio Namco WSG de tres voces;
-- ejecución de la máquina sincronizada por T-states;
-- simulador interactivo SDL;
-- pipeline de framebuffer y vídeo 720p en RTL;
-- integración Pac-Man → RTL → SDL mediante Verilator.
+It currently includes a functional **Pac-Man** implementation with:
 
-El objetivo del proyecto no es depender de MAME en tiempo de ejecución. Los componentes de la máquina están implementados dentro de `arcade-core`.
+- Z80 CPU;
+- Pac-Man CPU board;
+- video, tilemap, sprites, and palette;
+- three-voice Namco WSG audio;
+- machine execution synchronized by T-states;
+- interactive SDL simulator;
+- framebuffer and 720p video pipeline in RTL;
+- Pac-Man → RTL → SDL integration through Verilator.
+
+The project is not intended to depend on MAME at runtime. The machine components are implemented inside `arcade-core`.
 
 ---
 
-## Estado actual
+## Current status
 
-La implementación actual tiene validados:
+The current implementation has validated:
 
-- core Z80 mediante pruebas unitarias y ZEXDOC/ZEXALL;
-- decoder y mapa de memoria de la placa CPU de Pac-Man;
-- interrupciones y VBlank;
-- tilemap y sprites;
-- raster de Pac-Man;
-- ROM set de CPU, vídeo y sonido;
-- Namco WSG de tres voces;
-- música y efectos de Pac-Man;
-- sincronización CPU → vídeo → audio;
-- simulador SDL jugable;
-- framebuffer RTL;
-- cambio de dominio de reloj;
-- administración de múltiples framebuffers;
-- escalado entero;
-- scanout 1280×720;
-- efectos CRT;
-- integración Pac-Man → `video_system` RTL.
+- Z80 core through unit tests and ZEXDOC/ZEXALL;
+- Pac-Man CPU board decoder and memory map;
+- interrupts and VBlank;
+- tilemap and sprites;
+- Pac-Man raster;
+- CPU, video, and sound ROM set;
+- three-voice Namco WSG;
+- Pac-Man music and sound effects;
+- CPU → video → audio synchronization;
+- playable SDL simulator;
+- RTL framebuffer;
+- clock-domain crossing;
+- multiple-framebuffer management;
+- integer scaling;
+- 1280×720 scanout;
+- CRT effects;
+- Pac-Man → `video_system` RTL integration.
 
-# Estructura del proyecto
+# Project structure
 
 ```text
 arcade-core/
@@ -88,22 +90,22 @@ arcade-core/
 └── README.md
 ```
 
-## Capas
+## Layers
 
 ### `devices/`
 
-Componentes reutilizables que representan dispositivos concretos.
+Reusable components that represent specific hardware devices.
 
-Actualmente:
+Currently:
 
-- `z80`: emulador del Zilog Z80.
-- `namco_wsg`: generador de sonido Namco de tres voces utilizado por Pac-Man.
+- `z80`: Zilog Z80 emulator.
+- `namco_wsg`: three-voice Namco sound generator used by Pac-Man.
 
 ### `boards/`
 
-Implementaciones de placas o subsistemas de una máquina.
+Implementations of boards or machine subsystems.
 
-Pac-Man está dividido en:
+Pac-Man is divided into:
 
 ```text
 pacman_cpu
@@ -111,56 +113,56 @@ pacman_video
 pacman_audio
 ```
 
-La placa CPU conecta el Z80 con memoria, I/O, interrupciones y registros de hardware.
+The CPU board connects the Z80 to memory, I/O, interrupts, and hardware registers.
 
-La placa de vídeo implementa raster, tilemap, sprites, color y timing.
+The video board implements raster timing, tilemap, sprites, color, and timing.
 
-La placa de audio conecta los registros de sonido de Pac-Man con el Namco WSG.
+The audio board connects Pac-Man's sound registers to the Namco WSG.
 
 ### `machines/`
 
-Integra las placas que forman una máquina completa.
+Integrates the boards that make up a complete machine.
 
-Actualmente:
+Currently:
 
 ```text
 machines/pacman/
 ```
 
-`PacmanMachine` coordina CPU, vídeo, audio, entradas y tiempo de emulación.
+`PacmanMachine` coordinates CPU, video, audio, inputs, and emulation timing.
 
 ### `romsets/`
 
-Describe la composición lógica de las ROM de una máquina independientemente de cómo se carguen desde el host.
+Describes the logical composition of a machine's ROMs independently of how they are loaded from the host.
 
 ### `platform/host/`
 
-Código dependiente del ordenador anfitrión:
+Code that depends on the host computer:
 
-- carga de archivos;
-- carga de ROMs;
-- simuladores SDL;
-- integración con el pipeline RTL simulado.
+- file loading;
+- ROM loading;
+- SDL simulators;
+- integration with the simulated RTL pipeline.
 
 ### `rtl/`
 
-Pipeline de vídeo genérico escrito en SystemVerilog.
+Generic video pipeline written in SystemVerilog.
 
 ### `sim/`
 
-Testbenches C++ para Verilator e integración RTL + SDL.
+C++ testbenches for Verilator and RTL + SDL integration.
 
 ### `fpga/`
 
-Código específico para futuras placas FPGA.
+Board-specific code for future FPGA targets.
 
-Actualmente existe una frontera lógica para Tang Nano 20K, pero no un bitstream físico terminado.
+There is currently a logical boundary for the Tang Nano 20K, but no completed physical bitstream.
 
 ---
 
-# Requisitos
+# Requirements
 
-En Debian o derivados se necesitan al menos:
+On Debian or derivatives, at least the following packages are required:
 
 ```bash
 sudo apt install \
@@ -171,26 +173,26 @@ sudo apt install \
     verilator
 ```
 
-Herramientas utilizadas:
+Tools used:
 
-- compilador C con soporte C17;
-- compilador C++;
+- C compiler with C17 support;
+- C++ compiler;
 - GNU Make;
 - Bash;
 - SDL2;
 - Verilator.
 
-# ROMs de Pac-Man
+# Pac-Man ROMs
 
-Las ROM comerciales **no forman parte del repositorio**.
+Commercial ROMs are **not included in the repository**.
 
-Para ejecutar Pac-Man deben colocarse localmente en:
+To run Pac-Man, place them locally in:
 
 ```text
 roms/pacman/
 ```
 
-Se esperan estos diez archivos:
+The following ten files are expected:
 
 ```text
 pacman.6e
@@ -205,26 +207,26 @@ pacman.5f
 82s126.3m
 ```
 
-Los últimos dos corresponden al subsistema de sonido:
+The final two belong to the sound subsystem:
 
 ```text
 82s126.1m    waveform PROM
 82s126.3m    sound timing PROM
 ```
 
-El loader exige que cada archivo tenga exactamente el tamaño esperado.
+The loader requires every file to have exactly the expected size.
 
 ---
 
-# Compilar Pac-Man
+# Building Pac-Man
 
-Para construir los targets host:
+To build the host targets:
 
 ```bash
 make pacman-host
 ```
 
-Se generan:
+This generates:
 
 ```text
 build/host/pacman-sim
@@ -232,7 +234,7 @@ build/host/pacman-hdmi-sim
 build/host/pacman-video-system-sdl
 ```
 
-También existen los targets:
+The following targets are also available:
 
 ```bash
 make pacman-sim
@@ -240,60 +242,60 @@ make pacman-hdmi-sim
 make pacman-video-system
 ```
 
-Actualmente estos targets utilizan el mismo proceso de construcción host.
+These targets currently use the same host build process.
 
 ---
 
-# Simuladores de Pac-Man
+# Pac-Man simulators
 
 ## `pacman-sim`
 
-Es el simulador principal y la referencia funcional de la máquina.
+This is the main simulator and the functional reference for the machine.
 
-Ejecutar:
+Run:
 
 ```bash
 ./build/host/pacman-sim
 ```
 
-Puede indicarse otro directorio de ROMs:
+A different ROM directory can also be specified:
 
 ```bash
-./build/host/pacman-sim /ruta/a/roms
+./build/host/pacman-sim /path/to/roms
 ```
 
-Incluye:
+It includes:
 
 - CPU;
-- vídeo;
+- video;
 - audio;
-- entradas;
-- ventana SDL;
-- ejecución en tiempo real.
+- inputs;
+- SDL window;
+- real-time execution.
 
-Es la opción adecuada para jugar y validar el comportamiento general de Pac-Man.
+This is the appropriate option for playing and validating Pac-Man's overall behavior.
 
 ---
 
 ## `pacman-hdmi-sim`
 
-Viewer host que presenta Pac-Man dentro de una superficie 1280×720 usando la geometría final prevista para HDMI.
+Host viewer that displays Pac-Man inside a 1280×720 surface using the final geometry intended for HDMI.
 
 ```bash
 ./build/host/pacman-hdmi-sim
 ```
 
-No simula ciclo a ciclo el pipeline RTL completo.
+It does not simulate the complete RTL pipeline cycle by cycle.
 
-Es útil para validar rápidamente orientación, escalado y presentación.
+It is useful for quickly validating orientation, scaling, and presentation.
 
 ---
 
 ## `pacman-video-system-sdl`
 
-Integra la máquina Pac-Man con el `video_system` real de SystemVerilog mediante Verilator.
+Integrates the Pac-Man machine with the actual SystemVerilog `video_system` through Verilator.
 
-La ruta conceptual es:
+The conceptual path is:
 
 ```text
 PacmanMachine
@@ -317,49 +319,49 @@ video_system RTL
 SDL
 ```
 
-Ejecutar:
+Run:
 
 ```bash
 ./build/host/pacman-video-system-sdl
 ```
 
-Este programa está pensado principalmente como prueba de integración del RTL, no como el simulador más eficiente para jugar.
+This program is intended primarily as an RTL integration test, not as the most efficient simulator for playing.
 
 ---
 
-# Controles
+# Controls
 
-En los simuladores interactivos:
+In the interactive simulators:
 
-| Tecla   | Función                        |
-| ------- | ------------------------------ |
-| Flechas | Joystick de cuatro direcciones |
-| `5`     | Insertar moneda                |
-| `1`     | Start jugador 1                |
-| `2`     | Start jugador 2                |
-| `F`     | Pantalla completa              |
-| `Esc`   | Salir                          |
+| Key        | Function                   |
+| ---------- | -------------------------- |
+| Arrow keys | Four-way joystick          |
+| `5`        | Insert coin                |
+| `1`        | Start player 1             |
+| `2`        | Start player 2             |
+| `F`        | Full screen                |
+| `Esc`      | Exit                       |
 
-El joystick original es de cuatro vías. El host evita enviar diagonales simultáneas a la máquina emulada.
+The original joystick is four-way. The host avoids sending simultaneous diagonal inputs to the emulated machine.
 
 ---
 
-# CPU Z80
+# Z80 CPU
 
-El core se encuentra en:
+The core is located in:
 
 ```text
 devices/z80/
 ```
 
-Está diseñado como componente aislado reutilizable y no depende de ninguna implementación de juego.
+It is designed as an isolated, reusable component and does not depend on any specific game implementation.
 
-Las pruebas cubren, entre otras áreas:
+The tests cover, among other areas:
 
-- cargas;
-- ALU de 8 y 16 bits;
+- loads;
+- 8-bit and 16-bit ALU operations;
 - flags;
-- saltos;
+- jumps;
 - stack;
 - CB;
 - ED;
@@ -368,21 +370,21 @@ Las pruebas cubren, entre otras áreas:
 - IX/IY;
 - block transfer;
 - block I/O;
-- interrupciones;
-- modos de interrupción;
+- interrupts;
+- interrupt modes;
 - `DAA`;
 - `RRD` / `RLD`;
-- instrucciones con prefijos ignorados.
+- instructions with ignored prefixes.
 
-Además del conjunto de pruebas locales, el core fue validado con **ZEXDOC** y **ZEXALL**.
+In addition to the local test suite, the core has been validated with **ZEXDOC** and **ZEXALL**.
 
 ---
 
-# Ejecutar ZEXDOC / ZEXALL
+# Running ZEXDOC / ZEXALL
 
-`tests/z80/zex_runner.c` es un runner separado porque las imágenes `.cim` externas no forman parte del repositorio.
+`tests/z80/zex_runner.c` is a separate runner because the external `.cim` images are not part of the repository.
 
-Compilar:
+Compile:
 
 ```bash
 mkdir -p build/z80
@@ -400,132 +402,132 @@ cc \
     -o build/z80/zex_runner
 ```
 
-Ejecutar, por ejemplo:
+Run, for example:
 
 ```bash
-./build/z80/zex_runner /ruta/a/zexdoc.cim
+./build/z80/zex_runner /path/to/zexdoc.cim
 ```
 
-o:
+or:
 
 ```bash
-./build/z80/zex_runner /ruta/a/zexall.cim
+./build/z80/zex_runner /path/to/zexall.cim
 ```
 
-ZEX no se ejecuta automáticamente desde `make test` porque depende de archivos externos.
+ZEX is not run automatically by `make test` because it depends on external files.
 
 ---
 
-# Vídeo de Pac-Man
+# Pac-Man video
 
-La máquina original se modela con un raster de:
+The original machine is modeled with a raster of:
 
 ```text
 384 × 264
 ```
 
-La zona visible utilizada por Pac-Man es:
+The visible area used by Pac-Man is:
 
 ```text
 224 × 288
 ```
 
-El vídeo incluye:
+The video implementation includes:
 
-- RAM de tiles;
-- ROM gráfica de tiles;
-- ROM gráfica de sprites;
+- tile RAM;
+- tile graphics ROM;
+- sprite graphics ROM;
 - palette PROM;
 - color lookup PROM;
 - flip screen;
 - sprites;
-- transparencia;
+- transparency;
 - VBlank.
 
-La CPU y el raster se sincronizan mediante T-states del Z80.
+The CPU and raster are synchronized using Z80 T-states.
 
 ---
 
-# Audio de Pac-Man
+# Pac-Man audio
 
-El subsistema de audio utiliza un dispositivo Namco WSG de tres voces.
+The audio subsystem uses a three-voice Namco WSG device.
 
-Implementación:
+Implementation:
 
 ```text
 devices/namco_wsg/
 boards/pacman_audio/
 ```
 
-Características principales:
+Main characteristics:
 
-- 3 voces;
+- 3 voices;
 - 8 waveforms;
-- 32 muestras por waveform;
-- PROM de waveform de 4 bits;
-- acumuladores de fase;
-- frecuencia independiente por voz;
-- volumen de 0 a 15;
-- generación interna a 192 kHz.
+- 32 samples per waveform;
+- 4-bit waveform PROM;
+- phase accumulators;
+- independent frequency per voice;
+- volume from 0 to 15;
+- internal generation at 192 kHz.
 
-La relación utilizada con el Z80 es:
+The relationship used with the Z80 is:
 
 ```text
 CPU: 3.072 MHz
 WSG: 192 kHz
 ```
 
-por lo que se genera una muestra interna cada:
+so one internal sample is generated every:
 
 ```text
 16 T-states
 ```
 
-La salida SDL se reduce a 48 kHz mediante decimación 4:1.
+SDL output is reduced to 48 kHz through 4:1 decimation.
 
-Las escrituras a los registros WSG se aplican después de generar el audio correspondiente al intervalo de la instrucción actual. Esto evita que una escritura modifique retroactivamente el tiempo ya consumido por esa instrucción.
+Writes to WSG registers are applied after generating the audio corresponding to the current instruction interval. This prevents a write from retroactively changing time already consumed by that instruction.
 
-Esta sincronización es importante para efectos rápidos como el sonido de Pac-Man comiendo.
+This synchronization is important for fast effects such as Pac-Man's eating sound.
 
 ---
 
-# Pipeline de vídeo RTL
+# RTL video pipeline
 
-El pipeline final parte de:
+The final pipeline starts at:
 
 ```text
 rtl/video_system.sv
 ```
 
-El diseño desacopla completamente:
+The design fully decouples:
 
 ```text
-raster fuente
+source raster
     │
     ▼
-captura
+capture
     │
     ▼
 framebuffer
     │
     ▼
-memoria
+memory
     │
     ▼
-scanout HDMI
+HDMI scanout
 ```
 
-La fuente arcade nunca recibe backpressure.
+The arcade source never receives backpressure.
 
-Si la memoria no puede aceptar una captura completa, el frame puede abortarse sin detener el raster original.
+If memory cannot accept a complete capture, the frame may be aborted without stopping the original raster.
 
 ---
 
 ## Framebuffers
 
-El diseño utiliza cuatro slots RGB565.
+The design uses four RGB565 slots.
 
-Estados conceptuales:
+Conceptual states:
 
 ```text
 FREE
@@ -534,45 +536,45 @@ COMPLETE
 READING
 ```
 
-Los eventos:
+The events:
 
 ```text
 COMMIT
 ABORT
 ```
 
-actúan como barreras respecto a las escrituras de memoria anteriores.
+act as barriers with respect to preceding memory writes.
 
-HDMI selecciona únicamente frames completos.
+HDMI selects only complete frames.
 
-La política de presentación es:
+The presentation policy is:
 
 ```text
 latest complete frame wins
 ```
 
-Por tanto, si la fuente produce ligeramente más rápido que HDMI, pueden omitirse frames completos sin alterar el reloj de la máquina original.
+Therefore, if the source runs slightly faster than HDMI, complete frames may be skipped without changing the original machine clock.
 
 ---
 
-# Geometrías soportadas
+# Supported geometries
 
-El RTL es parametrizable.
+The RTL is parameterizable.
 
-## Geometría genérica
+## Generic geometry
 
 ```text
 320×240
 SCALE=3
 ```
 
-Resultado:
+Result:
 
 ```text
 960×720
 ```
 
-centrado horizontalmente dentro de:
+horizontally centered within:
 
 ```text
 1280×720
@@ -585,76 +587,76 @@ centrado horizontalmente dentro de:
 SCALE=2
 ```
 
-Resultado:
+Result:
 
 ```text
 448×576
 ```
 
-centrado dentro de:
+centered within:
 
 ```text
 1280×720
 ```
 
-El reloj de Pac-Man no se modifica para convertir sus aproximadamente 60.606 Hz a 60 Hz.
+Pac-Man's clock is not modified to convert its approximately 60.606 Hz to 60 Hz.
 
 ---
 
-# Procesamiento CRT
+# CRT processing
 
-El pipeline incluye efectos CRT discretos y sintetizables:
+The pipeline includes discrete, synthesizable CRT effects:
 
-1. modulación vertical del haz;
-2. bleed horizontal;
-3. máscara de fósforo RGB.
+1. vertical beam modulation;
+2. horizontal bleed;
+3. RGB phosphor mask.
 
-Se aplican después del escalado y antes de la salida final.
+They are applied after scaling and before final output.
 
-No se utiliza un framebuffer adicional para el efecto CRT.
+No additional framebuffer is used for the CRT effect.
 
 ---
 
-# Memoria y dominios de reloj
+# Memory and clock domains
 
-El diseño maneja dominios independientes para:
+The design handles independent domains for:
 
-- raster fuente;
-- memoria;
+- source raster;
+- memory;
 - HDMI.
 
-Se utilizan FIFOs asíncronos para transferencias entre dominios de reloj.
+Asynchronous FIFOs are used for transfers between clock domains.
 
-El pipeline mantiene:
+The pipeline preserves:
 
-- orden de comandos;
-- integridad de `COMMIT` y `ABORT`;
-- identificación de slot;
-- identificación de frame;
-- prioridad de lecturas para scanout;
-- ausencia de stalls en el raster fuente.
+- command ordering;
+- `COMMIT` and `ABORT` integrity;
+- slot identification;
+- frame identification;
+- read priority for scanout;
+- no stalls on the source raster.
 
 ---
 
-# Verificación
+# Verification
 
-La validación principal se ejecuta con:
+The main validation is run with:
 
 ```bash
 make test
 ```
 
-Actualmente este comando realiza:
+This command currently performs:
 
-1. lint completo de SystemVerilog;
-2. pruebas RTL mediante Verilator;
-3. pruebas C de dispositivos;
-4. pruebas de placas;
-5. pruebas de máquina;
-6. pruebas del loader host;
-7. pruebas del core Z80.
+1. complete SystemVerilog lint;
+2. RTL tests through Verilator;
+3. C device tests;
+4. board tests;
+5. machine tests;
+6. host loader tests;
+7. Z80 core tests.
 
-Los artefactos generados se almacenan exclusivamente bajo:
+Generated artifacts are stored exclusively under:
 
 ```text
 build/
@@ -662,31 +664,31 @@ build/
 
 ---
 
-## Lint RTL
+## RTL lint
 
 ```bash
 make lint
 ```
 
-Comprueba:
+Checks:
 
-- RTL genérico;
-- shell lógico Tang Nano 20K.
+- generic RTL;
+- Tang Nano 20K logical shell.
 
 ---
 
-## Geometría y vídeo
+## Geometry and video
 
 ```bash
 make geometry
 ```
 
-Ejecuta las pruebas de geometría para:
+Runs geometry tests for:
 
 - 320×240;
 - Pac-Man 224×288.
 
-También puede ejecutarse únicamente la prueba del sistema de vídeo:
+The video system test can also be run by itself:
 
 ```bash
 make video-system
@@ -694,87 +696,87 @@ make video-system
 
 ---
 
-## Suite C
+## C test suite
 
-`make test` compila y ejecuta automáticamente los archivos:
+`make test` automatically compiles and runs files matching:
 
 ```text
 tests/**/*_test.c
 ```
 
-La suite cubre actualmente:
+The suite currently covers:
 
 - file loader;
-- ROM loader de Pac-Man;
+- Pac-Man ROM loader;
 - Namco WSG;
 - audio board;
 - CPU board;
 - ROM set;
-- vídeo;
+- video;
 - sprites;
 - tilemap;
-- máquina Pac-Man;
-- sincronización de vídeo;
-- integración de audio;
-- core Z80.
+- Pac-Man machine;
+- video synchronization;
+- audio integration;
+- Z80 core.
 
-`zex_runner.c` no pertenece a esta suite porque requiere una imagen ZEX externa.
+`zex_runner.c` is not part of this suite because it requires an external ZEX image.
 
 ---
 
-# Artefactos de build
+# Build artifacts
 
-Todo lo generado debe permanecer dentro de:
+Everything generated must remain under:
 
 ```text
 build/
 ```
 
-El directorio puede eliminarse por completo en cualquier momento:
+The directory can be removed completely at any time:
 
 ```bash
 rm -rf build
 ```
 
-y reconstruirse ejecutando nuevamente los targets de `make`.
+and rebuilt by running the `make` targets again.
 
-`build/` no lo vamos a encontrar en Git.
+`build/` is not tracked in Git.
 
 ---
 
 # Tang Nano 20K
 
-El directorio:
+The directory:
 
 ```text
 fpga/tangnano20k/
 ```
 
-separa el código específico de placa del RTL genérico.
+separates board-specific code from generic RTL.
 
-Actualmente contiene una frontera lógica para:
+It currently contains a logical boundary for:
 
-- entrada de raster desde un futuro RP2350/RP2354;
-- conexión con `video_system`;
-- interfaz abstracta de memoria;
-- salida RGB/sync para una futura capa TMDS.
+- raster input from a future RP2350/RP2354;
+- connection to `video_system`;
+- abstract memory interface;
+- RGB/sync output for a future TMDS layer.
 
-El proyecto **todavía no afirma funcionamiento sobre una Tang Nano 20K física**.
+The project **does not yet claim to work on a physical Tang Nano 20K**.
 
-Antes de completar el target real deben verificarse mediante documentación oficial de la revisión exacta de la placa:
+Before completing the real target, the following must be verified against official documentation for the exact board revision:
 
-- oscilador y pin de clock;
-- package y speed grade del FPGA;
-- SDRAM instalada;
-- pines y timing SDRAM;
-- pines HDMI/TMDS;
-- primitivas Gowin necesarias;
-- configuración PLL;
+- oscillator and clock pin;
+- FPGA package and speed grade;
+- installed SDRAM;
+- SDRAM pins and timing;
+- HDMI/TMDS pins;
+- required Gowin primitives;
+- PLL configuration;
 - constraints.
 
-No deben inventarse constraints ni parámetros eléctricos sin esa información.
+Constraints and electrical parameters must not be invented without this information.
 
-El estado específico se documenta también en:
+Target-specific status is also documented in:
 
 ```text
 fpga/tangnano20k/README.md
@@ -782,29 +784,29 @@ fpga/tangnano20k/README.md
 
 ---
 
-# Flujo recomendado de desarrollo
+# Recommended development workflow
 
-Después de modificar C:
+After modifying C:
 
 ```bash
 make test
 ```
 
-Después de modificar RTL:
+After modifying RTL:
 
 ```bash
 make lint
 make test
 ```
 
-Para probar Pac-Man:
+To test Pac-Man:
 
 ```bash
 make pacman-host
 ./build/host/pacman-sim
 ```
 
-Para validar la integración completa con RTL:
+To validate the complete RTL integration:
 
 ```bash
 ./build/host/pacman-video-system-sdl
@@ -812,37 +814,37 @@ Para validar la integración completa con RTL:
 
 ---
 
-# Principios de diseño
+# Design principles
 
-El proyecto intenta mantener estas reglas:
+The project aims to maintain these rules:
 
-- dispositivos independientes de máquinas concretas cuando sea posible;
-- placas como fronteras claras de hardware;
-- máquinas como composición de placas;
-- tiempo de emulación derivado del hardware y no del host;
-- sin `malloc` dentro de la máquina emulada;
-- raster fuente sin backpressure;
-- ROM loading aislado en la plataforma host;
-- RTL genérico separado de adapters específicos de placa;
-- pruebas deterministas;
-- artefactos generados únicamente bajo `build/`;
-- ROMs comerciales fuera del repositorio.
+- devices independent of specific machines whenever possible;
+- boards as clear hardware boundaries;
+- machines as compositions of boards;
+- emulation timing derived from hardware rather than the host;
+- no `malloc` inside the emulated machine;
+- source raster without backpressure;
+- ROM loading isolated in the host platform;
+- generic RTL separated from board-specific adapters;
+- deterministic tests;
+- generated artifacts only under `build/`;
+- commercial ROMs kept outside the repository.
 
 ---
 
-# Estado del target físico
+# Physical target status
 
-La arquitectura y la simulación están bastante avanzadas, pero la implementación FPGA física sigue siendo trabajo futuro.
+The architecture and simulation are fairly advanced, but the physical FPGA implementation remains future work.
 
-En particular, todavía faltan:
+In particular, the following are still missing:
 
-- controlador SDRAM físico;
-- PLL de placa;
-- constraints verificados;
-- TMDS/HDMI físico;
-- síntesis;
+- physical SDRAM controller;
+- board PLL;
+- verified constraints;
+- physical TMDS/HDMI;
+- synthesis;
 - timing closure;
 - bitstream;
-- pruebas sobre hardware real.
+- testing on real hardware.
 
-Hasta completar esas etapas, los resultados RTL se consideran validados en simulación, no sobre FPGA física.
+Until those stages are complete, RTL results are considered validated in simulation, not on physical FPGA hardware.
