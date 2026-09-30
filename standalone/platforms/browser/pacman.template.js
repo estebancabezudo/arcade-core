@@ -2419,10 +2419,10 @@ const APP_HTML = `
 
 // Screen-only mode creates no toolbar, buttons, overlay, or performance panel.
 const SCREEN_STYLE = `
-:host{display:block;width:100%;background:#000;color:#fff;color-scheme:dark;contain:layout style}
+:host{display:block;box-sizing:border-box;width:100%;padding:4px;background:#000;color:#fff;color-scheme:dark;contain:layout style}
 *{box-sizing:border-box}.screen{width:100%;aspect-ratio:224/288;background:#000;position:relative}
 canvas{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none;cursor:pointer;outline:none}
-canvas:focus-visible{outline:2px solid #ffdd36;outline-offset:-2px}
+canvas:focus-visible{outline:0}
 .message{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .message.error{inset:0;width:auto;height:auto;margin:0;padding:16px;clip-path:none;white-space:normal;background:#000e;color:#ffdd85;font:14px/1.5 system-ui,sans-serif}
 :host(:fullscreen){display:grid;place-items:center;width:100vw;height:100dvh}

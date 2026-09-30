@@ -27,6 +27,13 @@ test('versionable source contains a placeholder, not the ROM payload', () => {
   assert.ok(!text.includes(Buffer.from(bundle.ROM_SET.bytes).toString('base64')));
 });
 
+test('screen-only mode uses a black frame without the yellow focus border', () => {
+  const text = readFileSync(path.join(root, 'standalone/platforms/browser/pacman.template.js'), 'utf8');
+  assert.match(text, /:host\{[^}]*padding:4px;[^}]*background:#000/);
+  assert.match(text, /canvas:focus-visible\{outline:0\}/);
+  assert.doesNotMatch(text, /canvas:focus-visible\{outline:2px solid #ffdd36/);
+});
+
 test('720-frame CPU, memory, video and audio match the supplied original bundle', () => {
   const machine = new bundle.Machine();
   const renderer = new bundle.Renderer(machine);
