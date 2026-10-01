@@ -1,0 +1,24 @@
+arcade-core standalone Pac-Man package validation
+
+Host smoke test:
+  PASS
+  frames=1800
+  audio48=1425600
+
+Bare-metal compilation:
+  Raspberry Pi 4 / Cortex-A72 / AArch64 / Clang 17 + LLD: PASS
+  Raspberry Pi 3 / Cortex-A53 / AArch64 / Clang 17 + LLD: PASS
+
+Prebuilt Raspberry Pi 4 image:
+  platforms/raspberry_pi/examples/pi4_usb/kernel8.img
+  sha256=80ad2a156cf3861e7d7379aac910f4ac004235bd4f39b9f3c4ca170b35d09b6c
+
+ROM material:
+  10 Pac-Man ROM/PROM files supplied by the user are included under
+  platforms/raspberry_pi/roms/pacman/ and embedded into generated/roms.c.
+  See platforms/raspberry_pi/roms/CHECKSUMS.txt.
+
+Hardware status:
+  NOT TESTED on a physical Raspberry Pi in this environment.
+  Framebuffer mailbox, GPIO controls and GPIO18 PDM audio require physical
+  bring-up validation on the target board.

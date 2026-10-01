@@ -1,4 +1,6 @@
-# Reorganization validation
+# Reorganization validation (previous delivery)
+
+For the current delivery, see [Raspberry Pi integration validation](validation/raspberry-pi-integration.md). The results below are retained as the historical reorganization record.
 
 Scope: the supplied `arcade-core(2).zip`, directory migration, ROM-free browser template/packaging, screen-only UI, and updated documentation. These checks do not replace the project's historical validation or claim new physical FPGA results.
 

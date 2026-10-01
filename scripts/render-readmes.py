@@ -22,7 +22,19 @@ def main() -> int:
     output.mkdir(parents=True, exist_ok=True)
     parser = MarkdownIt("commonmark", {"html": True}).enable("table")
     for filename, language in (("README.md", "en"), ("README.es.md", "es")):
-        tokens = parser.parse((ROOT / filename).read_text(encoding="utf-8"))
+        markdown = (ROOT / filename).read_text(encoding="utf-8")
+        # GitHub keeps a static preview; only the generated website gets live HTML.
+        preview = r"<!-- PACMAN_DEMO:BEGIN -->[\s\S]*?<!-- PACMAN_DEMO:END -->"
+        game = (
+            '<iframe src="build/standalone/browser/index.html" '
+            'title="Pac-Man arcade" width="448" height="576" '
+            'allow="autoplay; fullscreen" allowfullscreen></iframe>'
+        )
+        markdown, count = re.subn(preview, game, markdown)
+        if count != 1:
+            print(f"Expected one arcade preview marker in {filename}.", file=sys.stderr)
+            return 1
+        tokens = parser.parse(markdown)
         used = {}
         for index, token in enumerate(tokens):
             if token.type != "heading_open":

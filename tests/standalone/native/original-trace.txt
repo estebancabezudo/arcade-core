@@ -1,0 +1,2 @@
+cold frames=720 samples=570240 video=5e19d1eb30909326 audio=78232298db8460a9
+reset frames=720 samples=570240 video=3c11784f674a0692 audio=78232298db8460a9

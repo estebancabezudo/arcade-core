@@ -4,7 +4,7 @@
 
 `arcade-core` comenzó como un emulador de hardware clásico pensado para ejecutar como bare-metal en dispositivos muy pequeños. La arquitectura original es modular separando procesador de la placa del arcade, audio y video con fin de poder extenderlo fácilmente a otros arcade. La idea es no tener que levantar un OS, ni MAME e ir directamente al juego como si fuera la máquina original.  Fue pensado para una implementación híbrida CPU + FPGA para correr sobre HDMI.
 
-El alcance actual incluye integraciones modulares nativas/FPGA y una distribución autocontenida para navegador. Los targets bare-metal siguen separados de las rutas host y navegador implementadas.
+El alcance actual incluye integraciones modulares nativas/FPGA, una distribución JavaScript autocontenida para navegador y un backend nativo standalone Raspberry Pi con imagen Pi 4 suministrada. Su validación física sigue pendiente, separada de las pruebas host/navegador y de la simulación FPGA.
 
 El proyecto está escrito principalmente en:
 
@@ -28,6 +28,8 @@ Actualmente incluye una implementación funcional de **Pac-Man**, con:
 El objetivo del proyecto no es depender de MAME en tiempo de ejecución. Los componentes de la máquina están implementados dentro de `arcade-core`.
 
 Para la versión web, consulta el [ejemplo JavaScript para navegador](#ejemplo-javascript-para-navegador).
+
+Para Raspberry Pi, consulta el [ejemplo bare-metal](#ejemplo-raspberry-pi-bare-metal).
 
 ---
 
@@ -60,34 +62,49 @@ La separación principal distingue **componentes comunes**, **integraciones modu
 ```text
 arcade-core/
 ├── common/
-│   ├── devices/                 # z80, namco_wsg
-│   ├── boards/                  # pacman_cpu, pacman_video, pacman_audio
+│   ├── devices/                 # Z80, Namco WSG
+│   ├── boards/                  # Pac-Man CPU, video, audio
 │   ├── machines/pacman/
 │   ├── romsets/pacman/
-│   ├── rtl/                     # reusable video pipeline
-│   └── roms/pacman/             # local/private ROM input
-├── modular/
-│   └── platforms/
-│       ├── host/                # SDL, loaders, Verilator + SDL
-│       └── fpga/tangnano20k/     # logical shell; physical target pending
+│   ├── rtl/                     # generic video pipeline
+│   └── roms/                    # one shared local ROM input
+│       ├── CHECKSUMS.txt
+│       └── pacman/
+├── modular/platforms/
+│   ├── host/                    # SDL, loaders, Verilator + SDL
+│   └── fpga/tangnano20k/         # logical shell; physical FPGA pending
 ├── standalone/
-│   ├── include/platform.h      # native platform contract
+│   ├── include/                 # platform.h and pacman.h
+│   ├── tools/generate_pacman.py  # amalgamate common C, not a second core
 │   └── platforms/
-│       ├── browser/
-│       │   ├── index.html
-│       │   └── pacman.template.js
-│       └── raspberry_pi/        # planned native target, not implemented
+│       ├── browser/             # ROM-free JS template and canvas-only HTML
+│       └── raspberry_pi/
+│           ├── Makefile
+│           ├── boot/            # start.S and config.txt
+│           ├── include/
+│           ├── linker/
+│           ├── src/             # platform.c and main.c
+│           ├── scripts/         # ROM packaging and boot installers
+│           └── examples/pi4_usb/ # first-run documentation
 ├── tests/
-│   ├── common/                  # C devices, boards, machine, ROM set
-│   ├── modular/host/            # native file/ROM loaders
-│   ├── rtl/                     # Verilator testbenches
-│   └── standalone/browser/     # JavaScript, packaging, browser smoke
-├── scripts/                     # build and verification entry points
-├── docs/                        # preview, migration and validation notes
-├── build/                       # generated; ignored by Git
-│   ├── host/                    # native executables after compilation
-│   ├── standalone/browser/     # ready-to-run index.html + pacman.js
-│   └── docs/                    # interactive HTML versions of the READMEs
+│   ├── common/
+│   ├── modular/host/
+│   ├── rtl/
+│   └── standalone/
+│       ├── browser/
+│       └── native/
+├── scripts/                     # build/verification entry points
+├── docs/                        # migration, previews and validation
+├── build/                       # generated or supplied artifacts; Git-ignored
+│   ├── host/
+│   ├── standalone/
+│   │   ├── browser/             # index.html + self-contained pacman.js
+│   │   ├── native/pacman.c
+│   │   └── raspberry_pi/
+│   │       ├── generated/roms.c
+│   │       ├── model4/clang/     # selected build; model3/gcc also supported
+│   │       └── examples/pi4_usb/ # supplied kernel8.img, config, SHA256SUMS
+│   └── docs/                    # interactive HTML READMEs
 ├── Makefile
 ├── README.md
 └── README.es.md
@@ -97,9 +114,9 @@ arcade-core/
 
 `devices/` contiene los dispositivos reutilizables Z80 y Namco WSG. `boards/` los conecta con los subsistemas CPU, vídeo y audio de Pac-Man. `machines/pacman/` compone las placas mediante `PacmanMachine`, coordinando entradas y tiempo por T-states. `romsets/pacman/` define las regiones lógicas de las ROMs sin encargarse de leer archivos.
 
-`common/rtl/` contiene el pipeline genérico de vídeo SystemVerilog, sin constraints de pines ni adaptadores físicos de Tang Nano. `common/roms/pacman/` es la **entrada local y privada** compartida por el loader nativo y el empaquetador JavaScript; las ROMs quedan ignoradas por Git.
+`common/rtl/` contiene el pipeline genérico de vídeo SystemVerilog, sin constraints de pines ni adaptadores físicos de Tang Nano. `common/roms/pacman/` es la **entrada local y privada** compartida por el loader modular nativo, el empaquetador Raspberry Pi standalone y el empaquetador JavaScript; las ROMs quedan ignoradas por Git.
 
-El fuente del navegador es un port separado a JavaScript. **No** importa C ni ejecuta RTL. Compartir las ROMs de entrada no implica que los cambios del motor C se propaguen automáticamente al JavaScript. Los componentes C también pueden servir a un futuro port standalone nativo; esa integración todavía no está implementada.
+El fuente del navegador es un port separado a JavaScript. **No** importa C ni ejecuta RTL. Compartir las ROMs de entrada no implica que los cambios del motor C se propaguen automáticamente al JavaScript. El generador standalone nativo ahora utiliza los mismos componentes C comunes para producir una única unidad de compilación destinada a Raspberry Pi; su adaptador de hardware permanece separado.
 
 ## Integraciones modulares: `modular/platforms/`
 
@@ -111,13 +128,13 @@ El fuente del navegador es un port separado a JavaScript. **No** importa C ni ej
 
 `platforms/browser/` contiene la plantilla fuente JavaScript sin ROMs y la página que muestra únicamente el canvas. `make pacman-web` genera un único JavaScript autocontenido y su página HTML en `build/standalone/browser/`.
 
-`include/platform.h` es el contrato de plataforma standalone nativa para vídeo, audio, entradas, tiempo e inicialización. `platforms/raspberry_pi/` queda identificado como **target previsto**: sus directorios boot/include/src/linker/scripts todavía no contienen implementación. No se afirma que exista una imagen de arranque Raspberry Pi ni un Pac-Man standalone nativo ejecutable.
+`include/platform.h` define el contrato nativo de plataforma e `include/pacman.h` expone la API standalone. `tools/generate_pacman.py` amalgama los componentes C comunes en `build/standalone/native/pacman.c`. `platforms/raspberry_pi/` contiene arranque AArch64, linker, driver, empaquetador e instaladores importados. Se suministra la imagen Pi 4; su arranque físico, GPIO, vídeo y audio siguen sin verificar.
 
 ## Verificación y archivos generados
 
 Las pruebas reflejan su alcance bajo `tests/common/`, `tests/modular/`, `tests/rtl/` y `tests/standalone/`. Las listas comunes de fuentes e includes nativos están centralizadas en `scripts/common-build.sh`; se conservan los targets originales del Makefile raíz.
 
-Los programas compilados, temporales de pruebas, bundle web y documentación HTML se guardan bajo `build/`. La documentación y los inventarios de migración están en `docs/`.
+Los programas compilados, C generado de core/ROMs, ejemplo Pi 4 suministrado, temporales de pruebas, bundle web y documentación HTML se guardan bajo `build/` raíz. La documentación y los inventarios de migración están en `docs/`.
 
 Consulta las [instrucciones de migración](docs/migration/README.es.md) para ver las rutas anteriores y nuevas, y la lista exacta de archivos obsoletos que debes eliminar después de copiar esta distribución sobre un checkout existente.
 
@@ -147,11 +164,11 @@ Herramientas utilizadas:
 - SDL2;
 - Verilator.
 
-La lista de paquetes anterior corresponde a los targets nativos/RTL. Para jugar al ejemplo web preparado solo hace falta un navegador. Regenerar su bundle requiere Python 3 y ROMs locales; `make test-web` también requiere Node.js con soporte `node:test` (Node.js 18 o posterior). Generar los README HTML usa la dependencia opcional de `docs/requirements.txt`.
+La lista de paquetes anterior corresponde a los targets host nativos/RTL, no a la compilación cruzada Raspberry Pi. La guía Raspberry Pi documenta el toolchain AArch64 GCC o Clang/LLVM independiente. Para jugar al ejemplo web preparado solo hace falta un navegador. Regenerar su bundle requiere Python 3 y ROMs locales; `make test-web` también requiere Node.js con soporte `node:test` (Node.js 18 o posterior). Generar los README HTML usa la dependencia opcional de `docs/requirements.txt`.
 
 # ROMs de Pac-Man
 
-Las ROM comerciales **no forman parte del repositorio**. Esta distribución privada de trabajo conserva las diez ROMs entregadas con el proyecto en el directorio ignorado `common/roms/pacman/`. No publiques esas ROMs ni el bundle web generado como parte del repositorio fuente.
+Las ROM comerciales **no forman parte del repositorio**. Esta distribución privada de trabajo conserva las diez ROMs entregadas con el proyecto en el directorio ignorado `common/roms/pacman/`. No publiques esas ROMs, el C generado que las contiene, los kernels ni el bundle web como parte del repositorio fuente.
 
 Para ejecutar los simuladores nativos de Pac-Man deben colocarse localmente en:
 
@@ -313,22 +330,82 @@ El joystick original es de cuatro vías. El host evita enviar diagonales simult�
 
 ---
 
+# Ejemplo Raspberry Pi bare-metal
+
+[Documentación de plataforma](standalone/platforms/raspberry_pi/README.es.md) · [Primer arranque Pi 4](standalone/platforms/raspberry_pi/examples/pi4_usb/README.es.md)
+
+El paquete Raspberry Pi está integrado en el árbol standalone. Aporta arranque AArch64, linker script, adaptador de hardware, empaquetador de ROMs, instaladores y un **kernel Pi 4 Model B suministrado**. Ya no es un target previsto/vacío. **La validación física sigue pendiente**; el informe recibido y las comprobaciones de esta integración se distinguen en las [notas de validación](docs/validation/raspberry-pi-integration.md).
+
+## Imagen Pi 4 lista para copiar
+
+La distribución privada contiene:
+
+```text
+build/standalone/raspberry_pi/examples/pi4_usb/
+├── kernel8.img
+├── config.txt
+└── SHA256SUMS
+```
+
+La imagen y la configuración conservan el ejemplo recibido. No son una imagen de disco completa ni incluyen firmware Raspberry Pi. La guía de primer arranque explica la partición con firmware y los prerrequisitos de arranque USB. El instalador sustituye solo `kernel8.img` y `config.txt`, verifica los checksums del ejemplo y respalda las versiones anteriores. No formatea dispositivos ni cambia el orden de arranque EEPROM.
+
+## Compilar y regenerar
+
+Desde la raíz, con un toolchain AArch64 configurado:
+
+```bash
+make pacman-rpi MODEL=4 TOOLCHAIN=clang
+```
+
+`TOOLCHAIN=gcc` selecciona la configuración AArch64 GCC/binutils conservada; `MODEL=3` selecciona el target Pi 3/Zero 2 recibido. Se ejecutaron builds Clang 17 de ambos modelos durante esta integración; no se ejecutaron builds cruzados GCC ni arranque físico. Las salidas se separan por modelo y toolchain, por ejemplo `build/standalone/raspberry_pi/model4/clang/kernel8.img`.
+
+El build genera el núcleo nativo desde `common/` en `build/standalone/native/pacman.c` y empaqueta las **mismas** ROMs de `common/roms/pacman/` que utilizan host y navegador en `build/standalone/raspberry_pi/generated/roms.c`. No hay otra carpeta duplicada de ROMs dentro de la plataforma. La unidad C única conserva `-O3`, LTO y compilación freestanding, sin prometer optimización universal.
+
+`make pacman-standalone` genera solo el core nativo. `make pacman-rpi-roms` genera solo el C con las ROMs. `make pacman-rpi-example TOOLCHAIN=clang` recompila expresamente Pi 4, reemplaza el ejemplo preparado y actualiza sus checksums; la compilación normal no sustituye el ejemplo suministrado. Todos los generados permanecen bajo `build/` raíz.
+
+## Funcionamiento y limitaciones
+
+```text
+common C devices + boards + machine
+  -> standalone/tools/generate_pacman.py
+  -> build/standalone/native/pacman.c + shared native headers
+  -> Raspberry Pi startup + platform.c + embedded ROM C
+  -> kernel8.img
+```
+
+El core nativo entrega vídeo RGB565 de 224×288 y PCM16 mono a 48 kHz. El backend Pi solicita al firmware un framebuffer 1280×720×32, centra la imagen escalada 2×, lee controles GPIO activos en bajo y produce PDM síncrono por software en GPIO18. No utiliza Linux, SDL ni pipeline RTL/CRT.
+
+USB puede servir como medio de arranque, pero **no están implementados teclado/gamepad USB, lectura FAT/USB en runtime, audio HDMI, audio por jack analógico, DMA/PWM de audio ni Pi 5**. Para jugar se necesitan los pulsadores GPIO de la guía de plataforma. El audio requiere filtro/amplificador apropiados, nunca un altavoz conectado directamente al GPIO. El PDM síncrono puede afectar latencia y velocidad efectiva; el backend sigue necesitando puesta en marcha física.
+
+`make test-standalone` compara vídeo/audio nativos con la implementación standalone recibida y comprueba generadores e instaladores. `make test-c` y `make test-web` siguen separados. Un kernel o una traza host coincidentes no son una prueba de hardware.
+
+---
+
 # Ejemplo JavaScript para navegador
 
-[Abrir el juego con solo la pantalla](standalone/platforms/browser/index.html) · [README interactivo en español](build/docs/README.es.html)
+<!-- PACMAN_DEMO:BEGIN -->
+![Vista previa estática de la pantalla arcade de Pac-Man](docs/images/pacman.png)
+<!-- PACMAN_DEMO:END -->
 
-<iframe src="standalone/platforms/browser/index.html" title="Pac-Man arcade" width="448" height="576" style="border:0;max-width:100%;aspect-ratio:224/288" allow="autoplay; fullscreen" allowfullscreen></iframe>
+**En el README de GitHub esta imagen es solo una vista previa; no es un juego interactivo.** GitHub [filtra el HTML del Markdown](https://github.com/github/markup#github-markup) y elimina scripts. Un iframe tampoco permite insertar aquí el emulador. Enlazar un `index.html` del repositorio abre su código fuente, no una página que ejecute el juego.
 
-<details>
-<summary>Vista previa para lectores que no admiten contenido interactivo</summary>
+**Para jugar con esta distribución**, abre `build/standalone/browser/index.html` en el navegador. Para jugar dentro de la documentación, abre `build/docs/README.es.html`: el generador sustituye esta vista previa por un iframe funcional que muestra solo la pantalla del arcade. No añade controles ni paneles al juego.
 
-[![Pantalla arcade de Pac-Man](docs/images/pacman.png)](standalone/platforms/browser/index.html)
+El ZIP privado incluye los archivos web y README HTML generados. En un checkout de fuentes hay que proporcionar las ROMs y generar el bundle; `make readme-pages` también genera ambos README HTML. No hay una demo pública desplegada ni se presupone una URL operativa.
 
-</details>
+## Demo publicada y GitHub Pages
 
-El ejemplo integrado es un juego real cuando el lector HTML permite iframes. **La vista de README de GitHub no ejecuta JavaScript**: su [pipeline de Markdown](https://github.com/github/markup#github-markup) elimina HTML activo. En GitHub, el enlace relativo al juego abre el fuente HTML, no una demo alojada. Para jugar, abre la página local o el README HTML generado. No se presupone un despliegue ni una URL pública operativa.
+[GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages) sí sirve HTML, CSS y JavaScript. Permite alojar el juego como **página web independiente**, pero no ejecutarlo dentro de la vista del README en `github.com`.
 
-Esta distribución privada incluye los archivos web generados, por lo que el ejemplo se puede abrir sin compilador. En un checkout que solo contenga los fuentes hay que proporcionar las ROMs y generar primero el bundle.
+La distribución que se alojaría contiene únicamente `build/standalone/browser/index.html` y `pacman.js`, juntos en la misma carpeta. El HTML generado usa `./pacman.js` y `screenOnly: true`: la página publicada mostrará solo la pantalla arcade. No subas todo el árbol del proyecto como sitio web. El bundle incluye las ROMs suministradas para este paquete privado; no se ha configurado ni ejecutado ninguna publicación automática.
+
+Una vez exista una demo realmente publicada, la imagen del README puede enlazar a su URL. Este es solo el formato, no un enlace ya habilitado; sustituye el dominio de ejemplo por la dirección real:
+
+```markdown
+[![Play Pac-Man](docs/images/pacman.png)](https://YOUR-USER.github.io/arcade-core/)
+```
+
+Al pulsar esa imagen se abrirá el juego fuera del README. Ni una captura ni un GIF convierten la vista del README en un juego. Para un README con el arcade incrustado debe utilizarse la versión HTML fuera de `github.com`.
 
 ## Ejecutar y regenerar
 
@@ -453,7 +530,7 @@ Este target regenera el bundle y ejecuta regresiones Node.js y pruebas Python de
 
 Las optimizaciones son arrays tipados, gráficos y paletas predecodificados, caché de tiles modificados, framebuffers reutilizados y reciclado PCM en el camino AudioWorklet. El fallback sigue creando buffers y nodos de audio. Son optimizaciones concretas, no una garantía universal de rendimiento.
 
-El paquete privado también incluye versiones HTML de ambos README en `build/docs/`; su iframe integrado permite jugar sin un visor Markdown. Para regenerarlas instala la dependencia documental opcional de `docs/requirements.txt` y ejecuta `make readme-pages`. Esa dependencia solo sirve para regenerar documentación, no para jugar.
+El paquete privado también incluye versiones HTML de ambos README en `build/docs/`; su iframe integrado permite jugar sin un visor Markdown. Para regenerarlas instala la dependencia documental opcional de `docs/requirements.txt` y ejecuta `make readme-pages`. Esa dependencia solo sirve para regenerar y comprobar documentación, no para jugar. `make test-docs` verifica que GitHub recibe solo una vista previa, que los HTML generados contienen exactamente un iframe hacia la distribución portable y que se conservan UTF-8, idioma y generación determinista.
 
 Consulta las [notas de validación](docs/VALIDATION.md) para distinguir las comprobaciones realizadas en esta reorganización y las limitaciones del entorno.
 
@@ -854,7 +931,7 @@ rm -rf build
 
 y reconstruirse ejecutando nuevamente los targets de `make`.
 
-Esto también elimina la distribución web y los README HTML generados. Regenera el navegador con `make pacman-web` y la documentación HTML con `make readme-pages`. Las entradas permanecen en `standalone/platforms/browser/` y `common/roms/pacman/`; limpiar `build/` no las elimina.
+Esto también elimina el ejemplo Raspberry Pi preparado, el C generado de core/ROMs, la distribución web y los README HTML. Regenera el navegador con `make pacman-web`, la documentación HTML con `make readme-pages`, el kernel con `make pacman-rpi MODEL=4 TOOLCHAIN=clang` y el ejemplo Pi 4 con `make pacman-rpi-example TOOLCHAIN=clang`. Los fuentes y las ROMs comunes están fuera de `build/`; la imagen Pi 4 suministrada también puede recuperarse del ZIP privado original.
 
 `build/` no lo vamos a encontrar en Git.
 

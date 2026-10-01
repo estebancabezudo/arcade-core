@@ -5,6 +5,7 @@
 /common/roms/*
 !/common/roms/README.md
 !/common/roms/README.es.md
+!/common/roms/CHECKSUMS.txt
 
 # Keep legacy private files ignored until the documented migration is complete
 /roms/
@@ -20,3 +21,10 @@ __pycache__/
 .vscode/
 .DS_Store
 *~
+
+# Legacy Raspberry Pi local outputs (new outputs are all under /build/)
+/standalone/pacman.c
+/standalone/platforms/raspberry_pi/build/
+/standalone/platforms/raspberry_pi/generated/roms.c
+/standalone/platforms/raspberry_pi/roms/
+/standalone/platforms/raspberry_pi/examples/*/kernel*.img
