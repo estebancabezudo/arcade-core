@@ -1,3 +1,8 @@
+// Architecture and design
+//
+// Browser bundle regressions validate deterministic emulation plus the source-level
+// strict-CSP mounting contract without requiring network access or a browser fixture.
+
 'use strict';
 
 const test = require('node:test');
@@ -28,10 +33,30 @@ test('versionable source contains a placeholder, not the ROM payload', () => {
 });
 
 test('screen-only mode uses a black frame without the yellow focus border', () => {
-  const text = readFileSync(path.join(root, 'standalone/platforms/browser/pacman.template.js'), 'utf8');
+  const text = readFileSync(path.join(root, 'standalone/platforms/browser/pacman-screen.css'), 'utf8');
   assert.match(text, /:host\{[^}]*padding:4px;[^}]*background:#000/);
   assert.match(text, /canvas:focus-visible\{outline:0\}/);
   assert.doesNotMatch(text, /canvas:focus-visible\{outline:2px solid #ffdd36/);
+});
+
+test('strict-CSP mode links an external Shadow DOM stylesheet without inline style mutation', () => {
+  const text = readFileSync(path.join(root, 'standalone/platforms/browser/pacman.template.js'), 'utf8');
+  const cspBranch = text.slice(text.indexOf('if (options.stylesheetHref)'), text.indexOf('} else {', text.indexOf('if (options.stylesheetHref)')));
+  assert.match(cspBranch, /createElement\('link'\)/);
+  assert.match(cspBranch, /stylesheet\.rel = 'stylesheet'/);
+  assert.doesNotMatch(cspBranch, /createElement\('style'\)|style\.textContent|\.style\.|cssText/);
+  assert.doesNotMatch(text, /document\.body\.style|error\.style|cssText/);
+});
+
+test('standalone page uses only external styles and scripts', () => {
+  const page = readFileSync(path.join(root, 'standalone/platforms/browser/index.html'), 'utf8');
+  const scripts = [...page.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)];
+  assert.ok(scripts.length > 0);
+  assert.ok(scripts.every(([, attributes, body]) => /\ssrc=/.test(attributes) && body.trim() === ''));
+  assert.doesNotMatch(page, /\sonerror\s*=/i);
+  assert.doesNotMatch(page, /<style(?:\s|>)/i);
+  assert.match(page, /pacman-page\.css/);
+  assert.match(page, /pacman-page\.js/);
 });
 
 test('720-frame CPU, memory, video and audio match the supplied original bundle', () => {

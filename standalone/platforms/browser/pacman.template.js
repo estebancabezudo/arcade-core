@@ -1,7 +1,14 @@
 /*!
  * Pac-Man Web | arcade-core | 2026-09-29
  * Single-file, standalone JavaScript: original ROM set + Z80 + video + Namco WSG.
- * No WebAssembly, libraries, network services or external assets.
+ * No WebAssembly, libraries or network services; strict-CSP embeds use generated CSS.
+ *
+ * Architecture and design
+ * The browser runtime owns emulation and Shadow DOM composition. Consumers that
+ * require a strict CSP pass stylesheetHref, which mounts an external stylesheet
+ * with a Shadow DOM <link>; the legacy embedded stylesheet remains the default for
+ * existing standalone consumers. Page-level loading and error UI stay outside the
+ * runtime so a failed bundle cannot prevent the host document from rendering.
  *
  * Build: make pacman-web. Output: build/standalone/browser/pacman.js.
  * Usage: <script src="pacman.js"></script> in a UTF-8 HTML page.
@@ -9,6 +16,7 @@
  * Without screenOnly, the original complete control panel remains available.
  * Teclas: flechas/WASD; 5/C/Espacio moneda; 1/2 iniciar; P pausa; M sonido; F fullscreen.
  * Opcional antes de cargar: window.PacmanOptions={container:'#juego',volume:0.65};
+ * CSP estricta: agrega stylesheetHref:'./pacman-screen.css' para screenOnly.
  * Montaje manual: PacmanOptions={autoMount:false}; luego PacmanWeb.mount(elemento).
  * API: PacmanWeb.play(), .pause(), .resume(), .reset(), .insertCoin(), .getStats(), .destroy().
  *
@@ -2386,22 +2394,7 @@ class AudioEngine {
   }
 }
 
-const APP_STYLE = `
-:host{display:block;color:#e8eaf2;background:#090b10;font:14px/1.45 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:dark;contain:layout style;--yellow:#ffdd36;--muted:#9da5b5}
-*{box-sizing:border-box}button,input{font:inherit}button{cursor:pointer;-webkit-tap-highlight-color:transparent}button:disabled{cursor:wait;opacity:.6}
-.shell{min-height:100dvh;display:flex;flex-direction:column;align-items:center;padding:18px 16px 14px;gap:12px;background:radial-gradient(ellipse at 50% 20%,#161d2a 0%,#090b10 65%)}
-header{width:min(100%,560px);display:flex;align-items:center;justify-content:space-between;gap:16px}h1{margin:0;color:var(--yellow);font-size:25px;letter-spacing:-.6px;font-weight:850}.byline{font-size:11px;color:var(--muted);margin-top:1px}.tools{display:flex;gap:7px}
-button{border:1px solid #344052;color:#e8eaf2;background:#1b2330;border-radius:8px;padding:9px 13px;min-height:40px;transition:background .12s,border-color .12s}button:hover{background:#293448;border-color:#61718b}button:active{transform:translateY(1px)}button:focus-visible,input:focus-visible{outline:3px solid var(--yellow);outline-offset:3px}.icon{padding:8px 10px;min-width:40px;font-size:16px}.primary{background:var(--yellow);border-color:var(--yellow);color:#111318;font-weight:800}.primary:hover{background:#ffe775;border-color:#ffe775}.secondary{background:#162031}
-.screen{position:relative;isolation:isolate;background:#000;width:min(448px,calc((100dvh - 226px)*.7777778),100%);aspect-ratio:224/288;border:1px solid #313a4a;box-shadow:0 16px 70px #0009;border-radius:3px;overflow:hidden;flex-shrink:0}
-canvas{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;background:#000;touch-action:none}
-.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#030711b5;padding:20px;z-index:1}.overlay[hidden]{display:none}.card{text-align:center;max-width:290px;padding:25px 20px;background:#101722f2;border:1px solid #465068;border-radius:12px;box-shadow:0 14px 40px #0008}.card h2{font-size:23px;margin:0 0 9px;color:#fff;line-height:1.2}.card p{font-size:13px;color:#b8c0cf;margin:0 0 18px}.card button{width:100%;font-size:16px;min-height:46px}.card small{display:block;color:var(--muted);font-size:11px;margin-top:12px}
-.actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;width:min(100%,560px)}.actions button{font-size:13px;min-height:40px}.actions kbd{color:#b7c2d7;font:11px ui-monospace,monospace;margin-left:5px}.primary kbd{color:#41400f}.lower{display:flex;gap:16px;align-items:center;justify-content:center}.volume{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted)}input[type=range]{width:93px;accent-color:var(--yellow);cursor:pointer}.instructions{text-align:center;font-size:12px;color:#a9b3c5}.instructions kbd{font:12px ui-monospace,monospace;color:#f2f4f9;margin:0 3px}.stats{color:#8692a5;font:11px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace;text-align:center;min-height:16px}.message{font-size:12px;color:#ffdd85;max-width:560px;text-align:center}.message:empty{display:none}
-.touch{display:none;grid-template-columns:48px 48px 48px;grid-template-rows:43px 43px;gap:4px;touch-action:none}.touch button{padding:0;font-size:20px;touch-action:none;user-select:none;-webkit-user-select:none;min-height:43px}.up{grid-column:2}.left{grid-column:1;grid-row:2}.down{grid-column:2;grid-row:2}.right{grid-column:3;grid-row:2}.touch .held{background:#4a5269;border-color:var(--yellow)}
-:host(:fullscreen){width:100vw;height:100dvh;overflow:auto}:host(:fullscreen) .shell{min-height:100dvh}
-@media(pointer:coarse),(max-width:600px){.shell{padding:10px 10px 12px;gap:9px}h1{font-size:22px}.screen{width:min(448px,calc((100dvh - 282px)*.7777778),100%)}.touch{display:grid}.instructions{font-size:11px}.actions button{padding:8px 10px}.lower{gap:24px}.volume{flex-direction:column;gap:2px}.byline{font-size:10px}.stats{font-size:10px}}
-@media(max-height:500px) and (orientation:landscape){.shell{min-height:100dvh;display:grid;grid-template-columns:minmax(160px,240px) auto;grid-template-rows:auto auto 1fr auto;justify-content:center;align-items:center;gap:10px 20px;padding:12px}.screen{grid-column:2;grid-row:1/6;width:calc((100dvh - 24px)*.7777778)}header,.actions,.lower,.instructions,.stats{grid-column:1;width:100%}.actions{align-self:start}.stats{grid-row:5}.instructions{display:none}header{gap:8px}.message{grid-column:1}.touch{display:grid}}
-@media(prefers-reduced-motion:reduce){button{transition:none}}
-`;
+const APP_STYLE = "__PACMAN_APP_CSS__";
 const APP_HTML = `
 <main class="shell">
   <header><div><h1>Pac-Man</h1><div class="byline">arcade-core · ROM original</div></div>
@@ -2418,16 +2411,7 @@ const APP_HTML = `
 </main>`;
 
 // Screen-only mode creates no toolbar, buttons, overlay, or performance panel.
-const SCREEN_STYLE = `
-:host{display:block;box-sizing:border-box;width:100%;padding:4px;background:#000;color:#fff;color-scheme:dark;contain:layout style}
-*{box-sizing:border-box}.screen{width:100%;aspect-ratio:224/288;background:#000;position:relative}
-canvas{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none;cursor:pointer;outline:none}
-canvas:focus-visible{outline:0}
-.message{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-.message.error{inset:0;width:auto;height:auto;margin:0;padding:16px;clip-path:none;white-space:normal;background:#000e;color:#ffdd85;font:14px/1.5 system-ui,sans-serif}
-:host(:fullscreen){display:grid;place-items:center;width:100vw;height:100dvh}
-:host(:fullscreen) .screen{width:min(100vw,calc(100dvh * 224 / 288))}
-`;
+const SCREEN_STYLE = "__PACMAN_SCREEN_CSS__";
 const SCREEN_HTML = `
 <div class="screen">
   <canvas width="224" height="288" tabindex="0" aria-label="Pac-Man. Clic o Enter para jugar. Flechas o WASD para mover. P para pausar."></canvas>
@@ -2443,8 +2427,14 @@ class PacmanApp {
     const volume = Number.isFinite(options.volume) ? Math.max(0, Math.min(1, options.volume)) : 0.65;
     this.audio = new AudioEngine(volume);
     this.shadow = host.attachShadow({mode: 'open'});
-    const style = document.createElement('style'); style.textContent = this.screenOnly ? SCREEN_STYLE : APP_STYLE;
-    this.shadow.appendChild(style);
+    if (options.stylesheetHref) {
+      const stylesheet = document.createElement('link');
+      stylesheet.rel = 'stylesheet'; stylesheet.href = options.stylesheetHref;
+      this.shadow.appendChild(stylesheet);
+    } else {
+      const style = document.createElement('style'); style.textContent = this.screenOnly ? SCREEN_STYLE : APP_STYLE;
+      this.shadow.appendChild(style);
+    }
     const content = document.createElement('div'); content.innerHTML = this.screenOnly ? SCREEN_HTML : APP_HTML;
     this.shadow.appendChild(content);
     this.q = s => this.shadow.querySelector(s);
@@ -2720,7 +2710,7 @@ class PacmanApp {
   }
   getStats() {
     return {
-      version: '1.1.0', running: this.running, booted: this.booted,
+      version: '1.2.0', running: this.running, booted: this.booted,
       frame: this.m.frame, pc: this.m.cpu.pc, cpuTStates: this.m.cpu.total_t_states,
       nominalFrameRate: CPU_HZ / FRAME_CYCLES, cpuAndAudioMs: this.frameMs, renderMs: this.renderMs,
       audioMode: this.audio.mode, audioState: this.audio.context ? this.audio.context.state : 'unavailable',
@@ -2746,7 +2736,7 @@ if (typeof module !== 'undefined' && module.exports && typeof document === 'unde
 if (typeof document === 'undefined') return;
 let currentApp = null;
 const api = {
-  version: '1.1.0',
+  version: '1.2.0',
   roms: ROM_MANIFEST.map(r => Object.freeze({...r})),
   mount(target, options = {}) {
     const container = typeof target === 'string' ? document.querySelector(target) : target;
@@ -2775,7 +2765,6 @@ function autoMount() {
     const selector = initialOptions.container || (script && script.dataset.container);
     const container = selector ? document.querySelector(selector) : document.body;
     if (!selector && Array.from(document.body.children).every(el => el.tagName === 'SCRIPT')) {
-      document.body.style.margin = '0'; document.body.style.background = '#090b10';
       if (!document.querySelector('meta[name=viewport]')) {
         const meta = document.createElement('meta'); meta.name = 'viewport';
         meta.content = 'width=device-width,initial-scale=1,viewport-fit=cover'; document.head.appendChild(meta);
@@ -2785,7 +2774,7 @@ function autoMount() {
     api.mount(container, initialOptions);
   } catch (e) {
     const error = document.createElement('pre'); error.textContent = 'Pac-Man: ' + (e.message || e);
-    error.style.cssText = 'white-space:pre-wrap;padding:20px;color:#ffb6b6;background:#15151c';
+    error.className = 'pacman-load-error';
     document.body.appendChild(error); console.error('[PacmanWeb]', e);
   }
 }

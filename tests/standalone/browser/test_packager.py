@@ -1,4 +1,9 @@
-"""Regression tests for local ROM packaging; no network or compiler required."""
+"""Regression tests for local ROM packaging; no network or compiler required.
+
+Architecture and design
+The tests treat the packager as the only publication boundary and prove every browser
+artifact is deterministic and sourced from its corresponding versioned input.
+"""
 
 import importlib.util
 from pathlib import Path
@@ -29,13 +34,20 @@ class PackagerTests(unittest.TestCase):
         PACKAGER.build(self.roms, self.output)
         other = self.base / "other"
         PACKAGER.build(self.roms, other)
-        self.assertEqual({p.name for p in self.output.iterdir()}, {"index.html", "pacman.js"})
-        for name in ("index.html", "pacman.js"):
+        artifacts = {"index.html", "pacman.js", "pacman.css", "pacman-screen.css", "pacman-page.css", "pacman-page.js"}
+        self.assertEqual({p.name for p in self.output.iterdir()}, artifacts)
+        for name in artifacts:
             self.assertEqual((self.output / name).read_bytes(), (other / name).read_bytes())
         page = (self.output / "index.html").read_text(encoding="utf-8")
         self.assertIn('src="./pacman.js"', page)
         self.assertIn('charset="utf-8"', page)
-        self.assertIn("screenOnly: true", page)
+        self.assertNotIn("<style", page)
+        self.assertNotIn("onerror=", page)
+        for name in ("pacman.css", "pacman-screen.css", "pacman-page.css", "pacman-page.js"):
+            self.assertEqual(
+                (self.output / name).read_bytes(),
+                (ROOT / "standalone/platforms/browser" / name).read_bytes(),
+            )
 
     def test_wrong_crc_does_not_overwrite_previous_output(self):
         PACKAGER.build(self.roms, self.output)

@@ -1,4 +1,9 @@
-"""Check the static GitHub preview and locally rendered playable READMEs."""
+"""Check the static GitHub preview and locally rendered playable READMEs.
+
+Architecture and design
+Rendered documentation embeds the portable distribution as an iframe; these tests
+verify the iframe package, not implementation details copied into its HTML page.
+"""
 
 from html.parser import HTMLParser
 from pathlib import Path
@@ -49,8 +54,13 @@ class ReadmeTests(unittest.TestCase):
                 target = (path.parent / frames[0]['src']).resolve()
                 self.assertEqual(target, ROOT / 'build/standalone/browser/index.html')
                 self.assertTrue(target.is_file())
-                self.assertIn('screenOnly: true', target.read_text(encoding='utf-8'))
+                page = target.read_text(encoding='utf-8')
+                loader = (target.parent / 'pacman-page.js').read_text(encoding='utf-8')
+                self.assertIn('screenOnly: true', loader)
+                self.assertIn('stylesheetHref: "./pacman-screen.css"', loader)
+                self.assertNotIn('<style', page)
                 self.assertTrue((target.parent / 'pacman.js').is_file())
+                self.assertTrue((target.parent / 'pacman-screen.css').is_file())
                 self.assertNotIn('PACMAN_DEMO:', text)
                 self.assertNotIn('<img', text)
 

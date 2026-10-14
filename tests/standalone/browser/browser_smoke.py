@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Optional Chromium smoke tests; --inline avoids URL loading in restricted runners."""
+"""Optional Chromium smoke tests; --inline avoids URL loading in restricted runners.
+
+Architecture and design
+The HTTP fixture applies the production-equivalent script/style CSP so the real
+standalone entry proves external Shadow DOM styling without suppressing console policy
+violations. Inline mode remains an offline emulation fallback and is not the CSP gate.
+"""
 
 import argparse
 from functools import partial
@@ -16,6 +22,10 @@ OPTIONS = None
 
 
 class QuietHandler(SimpleHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header("Content-Security-Policy", "script-src 'self'; style-src 'self'")
+        super().end_headers()
+
     def log_message(self, format, *args):
         pass
 
@@ -45,12 +55,17 @@ class BrowserSmoke(unittest.TestCase):
         self.context = self.browser.new_context(viewport={"width": 1000, "height": 800}, has_touch=True)
         self.page = self.context.new_page()
         self.errors = []
+        self.csp_violations = []
         self.page.on("pageerror", lambda error: self.errors.append(str(error)))
+        self.page.on("console", lambda message: self.csp_violations.append(message.text)
+                     if "violates the following Content Security Policy" in message.text else None)
         self.load("standalone/platforms/browser/index.html")
 
     def tearDown(self):
         self.context.close()
         self.assertEqual(self.errors, [])
+        if not OPTIONS.inline:
+            self.assertEqual(self.csp_violations, [])
 
     def load(self, entry):
         if OPTIONS.inline:

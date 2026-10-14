@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Build a self-contained browser bundle from the template and local ROM files."""
+"""Build the browser distribution from versioned templates and local ROM files.
+
+Architecture and design
+The packager is the only source-to-distribution boundary. It injects the private ROM
+payload and versioned legacy CSS into the JavaScript bundle, and copies the same CSS
+plus the standalone page loader as deterministic external CSP-safe artifacts.
+"""
 
 import argparse
 import base64
@@ -13,7 +19,9 @@ import zlib
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "standalone/platforms/browser"
 MARKER = '"__PACMAN_ROM_BASE64__"'
-SCRIPT_PATH = "../../../build/standalone/browser/pacman.js"
+APP_CSS_MARKER = '"__PACMAN_APP_CSS__"'
+SCREEN_CSS_MARKER = '"__PACMAN_SCREEN_CSS__"'
+DISTRIBUTION_PREFIX = "../../../build/standalone/browser/"
 
 
 def atomic_write(path: Path, data: str) -> None:
@@ -34,8 +42,9 @@ def atomic_write(path: Path, data: str) -> None:
 def build(rom_directory: Path, output: Path) -> None:
     template = (SOURCE / "pacman.template.js").read_text(encoding="utf-8")
     match = re.search(r"^const ROM_MANIFEST = (\[.*\]);$", template, re.MULTILINE)
-    if match is None or template.count(MARKER) != 1:
-        raise ValueError("Invalid ROM manifest or payload placeholder in template")
+    markers = (MARKER, APP_CSS_MARKER, SCREEN_CSS_MARKER)
+    if match is None or any(template.count(marker) != 1 for marker in markers):
+        raise ValueError("Invalid ROM manifest or distribution placeholder in template")
     payload = bytearray()
     for entry in json.loads(match.group(1)):
         name = entry["name"]
@@ -48,14 +57,21 @@ def build(rom_directory: Path, output: Path) -> None:
             raise ValueError(f"Wrong ROM CRC32: {name}")
         payload.extend(data)
     encoded = base64.b64encode(payload).decode("ascii")
-    bundle = template.replace(MARKER, json.dumps(encoded))
+    app_css = (SOURCE / "pacman.css").read_text(encoding="utf-8")
+    screen_css = (SOURCE / "pacman-screen.css").read_text(encoding="utf-8")
+    bundle = (template
+              .replace(MARKER, json.dumps(encoded))
+              .replace(APP_CSS_MARKER, json.dumps(app_css))
+              .replace(SCREEN_CSS_MARKER, json.dumps(screen_css)))
     page = (SOURCE / "index.html").read_text(encoding="utf-8")
-    if page.count(SCRIPT_PATH) != 1:
-        raise ValueError("Expected exactly one generated-bundle path in index.html")
-    page = page.replace(SCRIPT_PATH, "./pacman.js")
+    if page.count(DISTRIBUTION_PREFIX) != 3:
+        raise ValueError("Expected generated distribution paths in index.html")
+    page = page.replace(DISTRIBUTION_PREFIX, "./")
     output.mkdir(parents=True, exist_ok=True)
     atomic_write(output / "pacman.js", bundle)
     atomic_write(output / "index.html", page)
+    for name in ("pacman.css", "pacman-screen.css", "pacman-page.css", "pacman-page.js"):
+        atomic_write(output / name, (SOURCE / name).read_text(encoding="utf-8"))
     print(f"Built {output / 'index.html'}")
     print(f"Embedded {len(payload)} ROM bytes; no runtime ROM downloads.")
 

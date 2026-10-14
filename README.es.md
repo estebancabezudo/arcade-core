@@ -397,7 +397,7 @@ El ZIP privado incluye los archivos web y README HTML generados. En un checkout 
 
 [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages) sí sirve HTML, CSS y JavaScript. Permite alojar el juego como **página web independiente**, pero no ejecutarlo dentro de la vista del README en `github.com`.
 
-La distribución que se alojaría contiene únicamente `build/standalone/browser/index.html` y `pacman.js`, juntos en la misma carpeta. El HTML generado usa `./pacman.js` y `screenOnly: true`: la página publicada mostrará solo la pantalla arcade. No subas todo el árbol del proyecto como sitio web. El bundle incluye las ROMs suministradas para este paquete privado; no se ha configurado ni ejecutado ninguna publicación automática.
+La distribución que se alojaría contiene los HTML, JavaScript y CSS generados en `build/standalone/browser/`. El HTML usa `./pacman.js`, `screenOnly: true` y el stylesheet externo `pacman-screen.css`: la página publicada muestra solo la pantalla arcade y funciona con `script-src 'self'; style-src 'self'`. No subas todo el árbol del proyecto como sitio web. El bundle incluye las ROMs suministradas para este paquete privado; no se ha configurado ni ejecutado ninguna publicación automática.
 
 Una vez exista una demo realmente publicada, la imagen del README puede enlazar a su URL. Este es solo el formato, no un enlace ya habilitado; sustituye el dominio de ejemplo por la dirección real:
 
@@ -414,7 +414,11 @@ Abre `standalone/platforms/browser/index.html` o `build/standalone/browser/index
 ```text
 build/standalone/browser/
 ├── index.html
-└── pacman.js
+├── pacman.js
+├── pacman.css
+├── pacman-screen.css
+├── pacman-page.css
+└── pacman-page.js
 ```
 
 Al terminar el arranque original, **haz clic/toca la pantalla o pulsa Enter** para introducir una moneda e iniciar una partida de un jugador. Hasta entonces se muestra únicamente el último cuadro de la secuencia original de arranque/demo; no hay un panel externo de inicio. Un clic mientras estás jugando no introduce otra moneda. Un clic durante una pausa continúa sin reiniciar.
@@ -429,7 +433,7 @@ make pacman-web
 
 `scripts/build-pacman-web.py` lee `standalone/platforms/browser/pacman.template.js`, valida tamaño exacto y CRC32 de las diez ROMs locales, inserta el bloque Base64 y escribe la distribución en `build/standalone/browser/`. La plantilla puede versionarse y **no contiene los bytes de las ROMs comerciales**. El bundle generado y las ROMs originales quedan ignorados por Git. Se utilizan exclusivamente las ROMs locales; no se descarga nada.
 
-Puedes copiar únicamente `build/standalone/browser/index.html` y `pacman.js` a otra carpeta o a un servidor web estático. Para jugar no hacen falta Python, Node.js, C, SDL ni Verilator. Abre el HTML, no el JavaScript. Las restricciones del navegador pueden afectar a páginas `file://`; servir esos dos archivos mediante un servidor estático es la alternativa.
+Copia el contenido completo de `build/standalone/browser/` a otra carpeta o a un servidor web estático. Para jugar no hacen falta Python, Node.js, C, SDL ni Verilator. Abre el HTML, no el JavaScript. Las restricciones del navegador pueden afectar a páginas `file://`; servir esos archivos mediante un servidor estático es la alternativa.
 
 ## Integración HTML y UTF-8
 
@@ -442,22 +446,17 @@ Guarda este ejemplo como un archivo HTML **en la raíz del proyecto** después d
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pac-Man</title>
-  <style>
-    body { margin: 0; background: #000; }
-    #game { width: min(448px, 100vw, calc(100dvh * 224 / 288)); margin: auto; }
-  </style>
+  <link rel="stylesheet" href="./build/standalone/browser/pacman-page.css">
 </head>
 <body>
   <div id="game"></div>
-  <script>
-    window.PacmanOptions = { container: '#game', screenOnly: true, volume: 0.65 };
-  </script>
-  <script src="./build/standalone/browser/pacman.js" charset="utf-8" defer></script>
+  <script src="./build/standalone/browser/pacman-page.js" defer></script>
+  <script id="pacman-bundle" src="./build/standalone/browser/pacman.js" charset="utf-8" defer></script>
 </body>
 </html>
 ```
 
-Define `PacmanOptions` antes de cargar el bundle. `screenOnly: true` crea un DOM con únicamente la pantalla, en lugar de ocultar un panel completo mediante CSS. Omite esa opción o usa `false` para conservar la interfaz completa original. `volume` admite valores de 0 a 1. Ambos modos comparten máquina, renderer y motor de audio.
+Define `PacmanOptions` antes de cargar el bundle. `stylesheetHref` selecciona el stylesheet externo del Shadow DOM requerido por una CSP estricta; usa `pacman-screen.css` con `screenOnly: true` y `pacman.css` con la interfaz completa. `screenOnly: true` crea un DOM con únicamente la pantalla, en lugar de ocultar un panel completo mediante CSS. `volume` admite valores de 0 a 1. Ambos modos comparten máquina, renderer y motor de audio.
 
 El sonido se inicializa desde una interacción del usuario; las [reglas de autoplay](https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Autoplay) del navegador pueden bloquearlo en otro caso. Si falla la inicialización del audio, el juego puede continuar en silencio. Ocultar la pestaña pausa la máquina. Al volver no se reanuda sola: haz clic en la pantalla o pulsa Enter/P.
 
