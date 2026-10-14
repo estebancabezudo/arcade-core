@@ -58,9 +58,11 @@ class ReadmeTests(unittest.TestCase):
                 loader = (target.parent / 'pacman-page.js').read_text(encoding='utf-8')
                 self.assertIn('screenOnly: true', loader)
                 self.assertIn('stylesheetHref: "./pacman-screen.css"', loader)
+                self.assertIn('audioWorkletHref: "./pacman-audio-worklet.js"', loader)
                 self.assertNotIn('<style', page)
                 self.assertTrue((target.parent / 'pacman.js').is_file())
                 self.assertTrue((target.parent / 'pacman-screen.css').is_file())
+                self.assertTrue((target.parent / 'pacman-audio-worklet.js').is_file())
                 self.assertNotIn('PACMAN_DEMO:', text)
                 self.assertNotIn('<img', text)
 

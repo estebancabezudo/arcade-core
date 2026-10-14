@@ -397,7 +397,7 @@ El ZIP privado incluye los archivos web y README HTML generados. En un checkout 
 
 [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages) sí sirve HTML, CSS y JavaScript. Permite alojar el juego como **página web independiente**, pero no ejecutarlo dentro de la vista del README en `github.com`.
 
-La distribución que se alojaría contiene los HTML, JavaScript y CSS generados en `build/standalone/browser/`. El HTML usa `./pacman.js`, `screenOnly: true` y el stylesheet externo `pacman-screen.css`: la página publicada muestra solo la pantalla arcade y funciona con `script-src 'self'; style-src 'self'`. No subas todo el árbol del proyecto como sitio web. El bundle incluye las ROMs suministradas para este paquete privado; no se ha configurado ni ejecutado ninguna publicación automática.
+La distribución que se alojaría contiene los HTML, JavaScript y CSS generados en `build/standalone/browser/`. El HTML usa `./pacman.js`, `screenOnly: true`, el stylesheet externo `pacman-screen.css` y `pacman-audio-worklet.js` desde el mismo origen: la página publicada muestra solo la pantalla arcade y funciona con `script-src 'self'; style-src 'self'`. No subas todo el árbol del proyecto como sitio web. El bundle incluye las ROMs suministradas para este paquete privado; no se ha configurado ni ejecutado ninguna publicación automática.
 
 Una vez exista una demo realmente publicada, la imagen del README puede enlazar a su URL. Este es solo el formato, no un enlace ya habilitado; sustituye el dominio de ejemplo por la dirección real:
 
@@ -417,6 +417,7 @@ build/standalone/browser/
 ├── pacman.js
 ├── pacman.css
 ├── pacman-screen.css
+├── pacman-audio-worklet.js
 ├── pacman-page.css
 └── pacman-page.js
 ```
@@ -456,7 +457,7 @@ Guarda este ejemplo como un archivo HTML **en la raíz del proyecto** después d
 </html>
 ```
 
-Define `PacmanOptions` antes de cargar el bundle. `stylesheetHref` selecciona el stylesheet externo del Shadow DOM requerido por una CSP estricta; usa `pacman-screen.css` con `screenOnly: true` y `pacman.css` con la interfaz completa. `screenOnly: true` crea un DOM con únicamente la pantalla, en lugar de ocultar un panel completo mediante CSS. `volume` admite valores de 0 a 1. Ambos modos comparten máquina, renderer y motor de audio.
+Define `PacmanOptions` antes de cargar el bundle. `stylesheetHref` selecciona el stylesheet externo del Shadow DOM requerido por una CSP estricta; usa `pacman-screen.css` con `screenOnly: true` y `pacman.css` con la interfaz completa. `audioWorkletHref` selecciona `pacman-audio-worklet.js` desde el mismo origen en lugar de una URL Blob. `screenOnly: true` crea un DOM con únicamente la pantalla, en lugar de ocultar un panel completo mediante CSS. `volume` admite valores de 0 a 1. Ambos modos comparten máquina, renderer y motor de audio.
 
 El sonido se inicializa desde una interacción del usuario; las [reglas de autoplay](https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Autoplay) del navegador pueden bloquearlo en otro caso. Si falla la inicialización del audio, el juego puede continuar en silencio. Ocultar la pestaña pausa la máquina. Al volver no se reanuda sola: haz clic en la pantalla o pulsa Enter/P.
 
@@ -481,7 +482,7 @@ Durante una partida, Enter envía la entrada de inicio de un jugador; un clic so
 2. **CPU y tiempo:** el Z80 ejecuta las instrucciones reales de las ROMs. `Machine.step()` avanza raster y sonido según los T-states de cada instrucción: 3.072.000 por segundo y 50.688 por cuadro de máquina, aproximadamente 60,606 cuadros/s. VBlank activa la interrupción habilitada. Las reglas del juego, enemigos y puntuación proceden de las ROMs, no de una recreación del juego en JavaScript.
 3. **Vídeo:** `Renderer` predecodifica tiles, sprites y paletas. Cachea los cambios del fondo, compone sprites, aplica la orientación y presenta un `ImageData` reutilizado en Canvas 2D a 224 × 288, sin suavizado de píxeles.
 4. **Audio:** el Namco WSG de tres voces produce una muestra interna cada 16 T-states (192 kHz); se promedian cuatro muestras para obtener PCM16 a 48 kHz. Las escrituras WSG diferidas se aplican **después** de generar el audio de la instrucción actual. La PROM de timing se conserva y valida; la generación utiliza el timing del modelo y no consulta esa PROM.
-5. **Reproducción:** se carga un `AudioWorklet` integrado mediante un Blob local. Los buffers PCM transferibles se reciclan hacia un buffer circular. Cuando esa inicialización no está disponible, se usa programación de bloques con `AudioBufferSourceNode`. La CPU y la síntesis siguen en el hilo principal; el worklet reproduce el audio.
+5. **Reproducción:** los hosts con CSP estricta cargan el `pacman-audio-worklet.js` generado desde el mismo origen; los consumidores legacy sin `audioWorkletHref` usan la misma fuente integrada mediante un Blob local. Los buffers PCM transferibles se reciclan hacia un buffer circular. Cuando esa inicialización no está disponible, se usa programación de bloques con `AudioBufferSourceNode`. La CPU y la síntesis siguen en el hilo principal; el worklet reproduce el audio.
 6. **Sincronización:** `PacmanApp.pump()` utiliza el reloj de audio o `performance.now()` si no hay sonido. `requestAnimationFrame` presenta el último cuadro completo independientemente del reloj de la máquina emulada. Se limita la recuperación tras bloqueos largos y las pestañas ocultas pausan la ejecución.
 
 ```text

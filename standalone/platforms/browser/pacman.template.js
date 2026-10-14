@@ -16,7 +16,8 @@
  * Without screenOnly, the original complete control panel remains available.
  * Teclas: flechas/WASD; 5/C/Espacio moneda; 1/2 iniciar; P pausa; M sonido; F fullscreen.
  * Opcional antes de cargar: window.PacmanOptions={container:'#juego',volume:0.65};
- * CSP estricta: agrega stylesheetHref:'./pacman-screen.css' para screenOnly.
+ * CSP estricta: agrega stylesheetHref:'./pacman-screen.css' y
+ * audioWorkletHref:'./pacman-audio-worklet.js' para screenOnly.
  * Montaje manual: PacmanOptions={autoMount:false}; luego PacmanWeb.mount(elemento).
  * API: PacmanWeb.play(), .pause(), .resume(), .reset(), .insertCoin(), .getStats(), .destroy().
  *
@@ -24,7 +25,7 @@
  * Video: graficos/paletas precalculados, cache de tiles modificados y framebuffer reutilizado.
  * Timing: 3,072 MHz / 50.688 T-states por frame; WSG 192 kHz -> PCM16 48 kHz (4:1).
  * Audio: conserva el orden de escrituras WSG diferidas despues de cada instruccion.
- * AudioWorklet integrado mediante Blob; fallback con Web Audio si no esta disponible.
+ * AudioWorklet externo bajo CSP estricta o Blob legacy; fallback Web Audio disponible.
  *
  * Build-time ROM input: common/roms/pacman/. This template has no ROM payload.
  * No se descargan ROMs. Se conservan los derechos que correspondan a sus titulares.
@@ -2230,56 +2231,16 @@ class Renderer {
   }
 }
 
-// Embedded AudioWorklet. Blob URLs are local, temporary and revoked after loading.
-const WORKLET_SOURCE = `
-class PacmanPCM extends AudioWorkletProcessor {
-  constructor() {
-    super(); this.ring=new Int16Array(32768); this.r=0; this.w=0; this.n=0;
-    this.frac=0; this.ratio=48000/sampleRate; this.playing=false;
-    this.startAt=0; this.under=0; this.over=0; this.blocks=0;
-    this.port.onmessage=({data:d})=>{
-      if(d.type==='reset') {
-        this.r=this.w=this.n=0; this.frac=0; this.startAt=d.frame; this.playing=true;
-      } else if(d.type==='stop') { this.playing=false; this.r=this.w=this.n=0; }
-      else if(d.type==='pcm') {
-        const a=new Int16Array(d.buffer);
-        if(this.n+d.count>32768){this.over++; this.r=this.w=this.n=0;this.frac=0;}
-        for(let i=0;i<d.count;i++){this.ring[this.w]=a[i];this.w=(this.w+1)&32767;}
-        this.n+=d.count;
-        this.port.postMessage({type:'recycle',buffer:d.buffer},[d.buffer]);
-      }
-    };
-  }
-  process(inputs,outputs) {
-    const out=outputs[0][0]; if(!out)return true;
-    let starved=false;
-    for(let i=0;i<out.length;i++) {
-      if(!this.playing||currentFrame+i<this.startAt){out[i]=0;continue;}
-      if(this.ratio===1) {
-        if(!this.n){out[i]=0;starved=true;continue;}
-        out[i]=this.ring[this.r]/32768;this.r=(this.r+1)&32767;this.n--;
-      } else {
-        if(this.n<Math.ceil(this.ratio)+1){out[i]=0;starved=true;continue;}
-        const a=this.ring[this.r],b=this.ring[(this.r+1)&32767];
-        out[i]=(a+(b-a)*this.frac)/32768;
-        this.frac+=this.ratio;
-        const take=Math.floor(this.frac);this.frac-=take;this.r=(this.r+take)&32767;this.n-=take;
-      }
-    }
-    if(starved)this.under++;
-    if(++this.blocks===128){this.blocks=0;this.port.postMessage({type:'stats',queued:this.n,underruns:this.under,overruns:this.over});}
-    return true;
-  }
-}
-registerProcessor('pacman-pcm-v1',PacmanPCM);
-`;
+// The packager injects the versioned external worklet bytes for legacy Blob consumers.
+const WORKLET_SOURCE = "__PACMAN_AUDIO_WORKLET__";
 class AudioEngine {
-  constructor(volume) {
+  constructor(volume, audioWorkletHref = null) {
     this.context = null; this.node = null; this.gain = null;
     this.mode = 'pendiente'; this.volume = volume; this.muted = false;
     this.pool = []; this.sources = new Set(); this.pendingPause = null;
     this.stats = {queued: 0, underruns: 0, overruns: 0};
     this.nextTime = 0; this.failure = ''; this.initializing = null;
+    this.audioWorkletHref = audioWorkletHref;
   }
   init() {
     if (this.initializing) return this.initializing;
@@ -2302,7 +2263,7 @@ class AudioEngine {
       if (this.context.audioWorklet && typeof AudioWorkletNode !== 'undefined') {
         let url = null;
         try {
-          url = URL.createObjectURL(new Blob([WORKLET_SOURCE], {type: 'application/javascript'}));
+          url = this.audioWorkletHref || URL.createObjectURL(new Blob([WORKLET_SOURCE], {type: 'application/javascript'}));
           await this.context.audioWorklet.addModule(url);
           this.node = new AudioWorkletNode(this.context, 'pacman-pcm-v1', {
             numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1]
@@ -2324,7 +2285,7 @@ class AudioEngine {
           if (this.node) this.node.disconnect();
           this.node = null;
           // File pages and restrictive CSPs still have scheduled Web Audio.
-        } finally { if (url) URL.revokeObjectURL(url); }
+        } finally { if (url && !this.audioWorkletHref) URL.revokeObjectURL(url); }
       }
       return true;
     } catch (e) {
@@ -2425,7 +2386,7 @@ class PacmanApp {
     this.booted = false; this.hasPlayed = false; this.transition = 0; this.startPromise = null;
     this.m = new Machine(); this.renderer = new Renderer(this.m);
     const volume = Number.isFinite(options.volume) ? Math.max(0, Math.min(1, options.volume)) : 0.65;
-    this.audio = new AudioEngine(volume);
+    this.audio = new AudioEngine(volume, options.audioWorkletHref || null);
     this.shadow = host.attachShadow({mode: 'open'});
     if (options.stylesheetHref) {
       const stylesheet = document.createElement('link');
@@ -2710,7 +2671,7 @@ class PacmanApp {
   }
   getStats() {
     return {
-      version: '1.2.0', running: this.running, booted: this.booted,
+      version: '1.3.0', running: this.running, booted: this.booted,
       frame: this.m.frame, pc: this.m.cpu.pc, cpuTStates: this.m.cpu.total_t_states,
       nominalFrameRate: CPU_HZ / FRAME_CYCLES, cpuAndAudioMs: this.frameMs, renderMs: this.renderMs,
       audioMode: this.audio.mode, audioState: this.audio.context ? this.audio.context.state : 'unavailable',
@@ -2736,7 +2697,7 @@ if (typeof module !== 'undefined' && module.exports && typeof document === 'unde
 if (typeof document === 'undefined') return;
 let currentApp = null;
 const api = {
-  version: '1.2.0',
+  version: '1.3.0',
   roms: ROM_MANIFEST.map(r => Object.freeze({...r})),
   mount(target, options = {}) {
     const container = typeof target === 'string' ? document.querySelector(target) : target;

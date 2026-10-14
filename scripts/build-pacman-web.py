@@ -4,7 +4,7 @@
 Architecture and design
 The packager is the only source-to-distribution boundary. It injects the private ROM
 payload and versioned legacy CSS into the JavaScript bundle, and copies the same CSS
-plus the standalone page loader as deterministic external CSP-safe artifacts.
+plus the standalone page loader and AudioWorklet as deterministic external CSP-safe artifacts.
 """
 
 import argparse
@@ -21,6 +21,7 @@ SOURCE = ROOT / "standalone/platforms/browser"
 MARKER = '"__PACMAN_ROM_BASE64__"'
 APP_CSS_MARKER = '"__PACMAN_APP_CSS__"'
 SCREEN_CSS_MARKER = '"__PACMAN_SCREEN_CSS__"'
+AUDIO_WORKLET_MARKER = '"__PACMAN_AUDIO_WORKLET__"'
 DISTRIBUTION_PREFIX = "../../../build/standalone/browser/"
 
 
@@ -42,7 +43,7 @@ def atomic_write(path: Path, data: str) -> None:
 def build(rom_directory: Path, output: Path) -> None:
     template = (SOURCE / "pacman.template.js").read_text(encoding="utf-8")
     match = re.search(r"^const ROM_MANIFEST = (\[.*\]);$", template, re.MULTILINE)
-    markers = (MARKER, APP_CSS_MARKER, SCREEN_CSS_MARKER)
+    markers = (MARKER, APP_CSS_MARKER, SCREEN_CSS_MARKER, AUDIO_WORKLET_MARKER)
     if match is None or any(template.count(marker) != 1 for marker in markers):
         raise ValueError("Invalid ROM manifest or distribution placeholder in template")
     payload = bytearray()
@@ -59,10 +60,12 @@ def build(rom_directory: Path, output: Path) -> None:
     encoded = base64.b64encode(payload).decode("ascii")
     app_css = (SOURCE / "pacman.css").read_text(encoding="utf-8")
     screen_css = (SOURCE / "pacman-screen.css").read_text(encoding="utf-8")
+    audio_worklet = (SOURCE / "pacman-audio-worklet.js").read_text(encoding="utf-8")
     bundle = (template
               .replace(MARKER, json.dumps(encoded))
               .replace(APP_CSS_MARKER, json.dumps(app_css))
-              .replace(SCREEN_CSS_MARKER, json.dumps(screen_css)))
+              .replace(SCREEN_CSS_MARKER, json.dumps(screen_css))
+              .replace(AUDIO_WORKLET_MARKER, json.dumps(audio_worklet)))
     page = (SOURCE / "index.html").read_text(encoding="utf-8")
     if page.count(DISTRIBUTION_PREFIX) != 3:
         raise ValueError("Expected generated distribution paths in index.html")
@@ -70,7 +73,7 @@ def build(rom_directory: Path, output: Path) -> None:
     output.mkdir(parents=True, exist_ok=True)
     atomic_write(output / "pacman.js", bundle)
     atomic_write(output / "index.html", page)
-    for name in ("pacman.css", "pacman-screen.css", "pacman-page.css", "pacman-page.js"):
+    for name in ("pacman.css", "pacman-screen.css", "pacman-page.css", "pacman-page.js", "pacman-audio-worklet.js"):
         atomic_write(output / name, (SOURCE / name).read_text(encoding="utf-8"))
     print(f"Built {output / 'index.html'}")
     print(f"Embedded {len(payload)} ROM bytes; no runtime ROM downloads.")

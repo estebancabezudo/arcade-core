@@ -48,6 +48,20 @@ test('strict-CSP mode links an external Shadow DOM stylesheet without inline sty
   assert.doesNotMatch(text, /document\.body\.style|error\.style|cssText/);
 });
 
+test('strict-CSP audio mode loads a same-origin worklet without creating a Blob URL', () => {
+  const text = readFileSync(path.join(root, 'standalone/platforms/browser/pacman.template.js'), 'utf8');
+  const branchStart = text.indexOf('url = this.audioWorkletHref ||');
+  const branch = text.slice(branchStart, text.indexOf('this.node = new AudioWorkletNode', branchStart));
+  assert.ok(branchStart > 0);
+  assert.match(branch, /this\.audioWorkletHref \|\| URL\.createObjectURL/);
+  assert.match(text, /new AudioEngine\(volume, options\.audioWorkletHref \|\| null\)/);
+  const loader = readFileSync(path.join(root, 'standalone/platforms/browser/pacman-page.js'), 'utf8');
+  assert.match(loader, /audioWorkletHref: "\.\/pacman-audio-worklet\.js"/);
+  const worklet = readFileSync(path.join(root, 'standalone/platforms/browser/pacman-audio-worklet.js'), 'utf8');
+  assert.match(worklet, /registerProcessor\('pacman-pcm-v1',PacmanPCM\)/);
+  assert.doesNotMatch(worklet, /Blob|createObjectURL|<style|\.style\.|cssText/);
+});
+
 test('standalone page uses only external styles and scripts', () => {
   const page = readFileSync(path.join(root, 'standalone/platforms/browser/index.html'), 'utf8');
   const scripts = [...page.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)];

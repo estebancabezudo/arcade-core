@@ -114,6 +114,13 @@ class BrowserSmoke(unittest.TestCase):
         self.page.keyboard.press("5")
         self.page.wait_for_function("PacmanWeb.app.coinFrames === 0")
 
+    def test_fullscreen_keyboard_control(self):
+        self.page.keyboard.press("f")
+        self.page.wait_for_function("document.fullscreenElement !== null")
+        self.assertEqual(self.page.evaluate("document.fullscreenElement.tagName"), "PACMAN-ARCADE")
+        self.page.keyboard.press("Escape")
+        self.page.wait_for_function("document.fullscreenElement === null")
+
     def test_touch_and_small_viewports(self):
         self.page.set_viewport_size({"width": 390, "height": 844})
         self.page.locator("canvas").tap()
@@ -168,6 +175,8 @@ class BrowserSmoke(unittest.TestCase):
           return samples.some(value => Math.abs(value) > 0.0001);
         }""", timeout=10000)
         self.assertEqual(self.page.evaluate("PacmanWeb.getStats().audioState"), "running")
+        if not OPTIONS.inline:
+            self.assertEqual(self.page.evaluate("PacmanWeb.getStats().audioMode"), "AudioWorklet")
 
     def test_visibility_pause_and_portable_entry(self):
         self.start()

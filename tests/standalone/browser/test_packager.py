@@ -34,7 +34,7 @@ class PackagerTests(unittest.TestCase):
         PACKAGER.build(self.roms, self.output)
         other = self.base / "other"
         PACKAGER.build(self.roms, other)
-        artifacts = {"index.html", "pacman.js", "pacman.css", "pacman-screen.css", "pacman-page.css", "pacman-page.js"}
+        artifacts = {"index.html", "pacman.js", "pacman.css", "pacman-screen.css", "pacman-page.css", "pacman-page.js", "pacman-audio-worklet.js"}
         self.assertEqual({p.name for p in self.output.iterdir()}, artifacts)
         for name in artifacts:
             self.assertEqual((self.output / name).read_bytes(), (other / name).read_bytes())
@@ -43,7 +43,7 @@ class PackagerTests(unittest.TestCase):
         self.assertIn('charset="utf-8"', page)
         self.assertNotIn("<style", page)
         self.assertNotIn("onerror=", page)
-        for name in ("pacman.css", "pacman-screen.css", "pacman-page.css", "pacman-page.js"):
+        for name in ("pacman.css", "pacman-screen.css", "pacman-page.css", "pacman-page.js", "pacman-audio-worklet.js"):
             self.assertEqual(
                 (self.output / name).read_bytes(),
                 (ROOT / "standalone/platforms/browser" / name).read_bytes(),

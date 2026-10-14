@@ -10,6 +10,7 @@ globalThis.PacmanOptions = Object.freeze({
   screenOnly: true,
   volume: 0.65,
   stylesheetHref: "./pacman-screen.css",
+  audioWorkletHref: "./pacman-audio-worklet.js",
 });
 
 document.getElementById("pacman-bundle")?.addEventListener("error", () => {
